@@ -40,6 +40,16 @@ jobs:
           POSTGRES_PORT: 5432
         run: |
           python -c "from app.main import app; print('Backend import successful')"
+- name: Run backend tests
+  working-directory: backend
+  env:
+    POSTGRES_DB: eventhub
+    POSTGRES_USER: eventhub_user
+    POSTGRES_PASSWORD: ci_password
+    POSTGRES_HOST: localhost
+    POSTGRES_PORT: 5432
+  run: |
+    python -m pytest
   frontend:
     name: Frontend CI
     runs-on: ubuntu-latest
