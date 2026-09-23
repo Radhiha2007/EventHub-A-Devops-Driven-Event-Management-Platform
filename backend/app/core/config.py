@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -8,6 +8,11 @@ class Settings(BaseSettings):
     POSTGRES_HOST: str
     POSTGRES_PORT: int = 5432
 
+    model_config = SettingsConfigDict(
+        env_file="../.env",
+        extra="ignore",
+    )
+
     @property
     def database_url(self) -> str:
         return (
@@ -16,10 +21,6 @@ class Settings(BaseSettings):
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/"
             f"{self.POSTGRES_DB}"
         )
-
-    class Config:
-        env_file = "../.env"
-        extra = "ignore"
 
 
 settings = Settings()
