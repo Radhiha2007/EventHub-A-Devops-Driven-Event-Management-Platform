@@ -56,6 +56,17 @@ jobs:
         run: |
           python -c "from app.main import app; print('Backend import successful')"
 
+      - name: Initialize database
+        working-directory: backend
+        env:
+          POSTGRES_DB: eventhub
+          POSTGRES_USER: eventhub_user
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+        run: |
+          python -m app.database.init_db
+
       - name: Run backend tests
         working-directory: backend
         env:
