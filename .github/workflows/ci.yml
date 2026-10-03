@@ -15,6 +15,21 @@ jobs:
     name: Backend CI
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: eventhub
+          POSTGRES_USER: eventhub_user
+          POSTGRES_PASSWORD: ci_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U eventhub_user -d eventhub"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -51,7 +66,6 @@ jobs:
           POSTGRES_PORT: 5432
         run: |
           python -m pytest
-
   frontend:
     name: Frontend CI
     runs-on: ubuntu-latest
