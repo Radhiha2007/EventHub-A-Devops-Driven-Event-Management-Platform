@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
+from app.core.auth import get_current_user
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
@@ -22,6 +23,18 @@ app.add_middleware(
 
 app.include_router(clubs_router)
 app.include_router(events_router)
+@app.get("/auth/me")
+def read_current_user(
+    claims: dict = Depends(get_current_user),
+):
+    return {
+        "authenticated": True,
+        "user_id": claims.get("oid"),
+        "tenant_id": claims.get("tid"),
+        "name": claims.get("name"),
+        "username": claims.get("preferred_username"),
+        "scopes": claims.get("scp", "").split(),
+    }
 
 @app.get("/health")
 def health_check():
