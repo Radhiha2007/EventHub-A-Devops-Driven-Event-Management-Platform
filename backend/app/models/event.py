@@ -97,3 +97,10 @@ class Event(Base):
         "Club",
         back_populates="events",
     )
+
+    registrations = relationship(
+        "Registration",
+        back_populates="event",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
