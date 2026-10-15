@@ -30,7 +30,7 @@ def create_test_event():
             end_time=time(12, 0),
             capacity=50,
             registration_deadline=datetime(2026, 11, 9, 23, 59),
-            status=EventStatus.APPROVED,
+            status=EventStatus.COMPLETED,
         )
         db.add(event)
         db.commit()
@@ -58,6 +58,31 @@ def test_issue_certificate():
     assert data["recipient_name"] == "Test Student"
     assert data["certificate_code"].startswith("EVH-")
 
+
+def test_issue_certificate_for_uncompleted_event():
+    event_id = create_test_event()
+
+    db = SessionLocal()
+    try:
+        event = db.get(Event, event_id)
+        event.status = EventStatus.APPROVED
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.post(
+        "/api/certificates/issue",
+        json={
+            "event_id": str(event_id),
+            "recipient_id": f"student-{uuid.uuid4().hex}",
+            "recipient_name": "Test Student",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "Certificates can only be issued for completed events"
+    )
 
 def test_issue_certificate_for_nonexistent_event():
     response = client.post(

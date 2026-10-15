@@ -101,6 +101,8 @@ def update_event_endpoint(
     return update_event(db, event, event_data)
 
 
+
+
 @router.patch(
     "/{event_id}/status",
     response_model=EventResponse,
@@ -118,13 +120,14 @@ def update_event_status_endpoint(
             detail="Event not found",
         )
 
-    return update_event_status(db, event, status_data)
+    try:
+        return update_event_status(db, event, status_data)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
-
-@router.delete(
-    "/{event_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
 def delete_event_endpoint(
     event_id: UUID,
     db: Session = Depends(get_db),
