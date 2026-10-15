@@ -4,6 +4,7 @@ from app.models.event import Event, EventStatus
 from app.models.feedback import Feedback
 from app.models.notification import Notification, NotificationType
 from app.models.certificate import Certificate
+
 __all__ = [
     "Club",
     "Event",
@@ -11,5 +12,5 @@ __all__ = [
     "Feedback",
     "Notification",
     "NotificationType",
-    "Certificates",
+    "Certificate",
 ]
