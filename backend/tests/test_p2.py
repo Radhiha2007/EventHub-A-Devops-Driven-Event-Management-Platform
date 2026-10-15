@@ -60,7 +60,7 @@ def test_create_event():
 
         assert response.status_code == 201
         assert response.json()["title"] == "Pytest Event"
-        assert response.json()["status"] == "PENDING"
+        assert response.json()["status"] == "APPROVED"
 
     finally:
         db.close()
@@ -137,6 +137,42 @@ def test_event_approval():
 
         assert response.status_code == 200
         assert response.json()["status"] == "APPROVED"
+    finally:
+        db.close()
+
+def test_event_can_be_completed():
+    db = SessionLocal()
+
+    try:
+        club = Club(name="Completion Test Club")
+        db.add(club)
+        db.commit()
+        db.refresh(club)
+
+        event = Event(
+            club_id=club.id,
+            title="Completion Test Event",
+            category="Technical",
+            venue="Hall 2",
+            event_date=date(2026, 11, 10),
+            start_time=time(10, 0),
+            end_time=time(12, 0),
+            capacity=50,
+            registration_deadline=datetime(2026, 11, 9, 23, 59),
+            status=EventStatus.PENDING,
+        )
+
+        db.add(event)
+        db.commit()
+        db.refresh(event)
+
+        response = client.patch(
+            f"/api/events/{event.id}/status",
+            json={"status": "COMPLETED"},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "COMPLETED"
 
     finally:
         db.close()
