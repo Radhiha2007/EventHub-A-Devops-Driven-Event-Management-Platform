@@ -9,6 +9,7 @@ from app.models import (
     Event,
     Feedback,
     Notification,
+    Registration,
     User,
 )
 
