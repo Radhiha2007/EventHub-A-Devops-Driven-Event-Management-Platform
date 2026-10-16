@@ -3,6 +3,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.permissions import require_roles
+from app.models.user import UserRole
 from app.database.session import get_db
 from app.schemas.club import ClubCreate, ClubResponse, ClubUpdate
 from app.services.club import create_club, get_club, get_clubs, update_club
@@ -22,6 +24,7 @@ router = APIRouter(
 def create_club_endpoint(
     club_data: ClubCreate,
     db: Session = Depends(get_db),
+    _user=Depends(require_roles(UserRole.CLUB)),
 ):
     return create_club(db, club_data)
 
@@ -63,6 +66,7 @@ def update_club_endpoint(
     club_id: UUID,
     club_data: ClubUpdate,
     db: Session = Depends(get_db),
+    _user=Depends(require_roles(UserRole.CLUB)),
 ):
     club = get_club(db, club_id)
 

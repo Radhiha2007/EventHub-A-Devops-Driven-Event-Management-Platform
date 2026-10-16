@@ -56,6 +56,12 @@ class User(Base):
         default=UserRole.STUDENT,
     )
 
+    onboarding_completed: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,

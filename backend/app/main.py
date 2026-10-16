@@ -10,6 +10,7 @@ from app.routers.events import router as events_router
 from app.routers.feedback import router as feedback_router
 from app.routers.notifications import router as notifications_router
 from app.routers.certificates import router as certificates_router
+from app.routers.users import router as users_router
 
 
 app = FastAPI(
@@ -33,6 +34,7 @@ app.include_router(events_router)
 app.include_router(feedback_router)
 app.include_router(notifications_router)
 app.include_router(certificates_router)
+app.include_router(users_router)
 
 
 @app.get("/auth/me")
