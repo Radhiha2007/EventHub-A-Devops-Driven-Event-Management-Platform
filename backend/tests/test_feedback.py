@@ -31,7 +31,7 @@ def create_test_event():
             end_time=time(12, 0),
             capacity=50,
             registration_deadline=datetime(2026, 11, 9, 23, 59),
-            status=EventStatus.APPROVED,
+            status=EventStatus.UPCOMING,
         )
         db.add(event)
         db.commit()

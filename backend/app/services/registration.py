@@ -28,8 +28,11 @@ def create_registration(
     event = db.query(Event).filter(Event.id == event_id).with_for_update().first()
     if event is None:
         raise RegistrationError(404, "Event not found")
-    if event.status != EventStatus.APPROVED:
-        raise RegistrationError(409, "Registrations are available only for approved events")
+    if event.status != EventStatus.UPCOMING:
+        raise RegistrationError(
+            409,
+            "Registrations are available only for upcoming events"
+    )
     if event.registration_deadline <= datetime.utcnow():
         raise RegistrationError(409, "Registration deadline has passed")
 

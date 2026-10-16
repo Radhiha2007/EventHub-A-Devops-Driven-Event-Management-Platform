@@ -67,7 +67,7 @@ def registration_event(test_auth_context):
         end_time=time(12),
         capacity=2,
         registration_deadline=datetime.utcnow() + timedelta(days=1),
-        status=EventStatus.APPROVED,
+        status=EventStatus.UPCOMING,
     )
     db.add(event)
     db.commit()
@@ -119,26 +119,43 @@ def test_registration_rejects_missing_event():
     assert missing.status_code == 404
 
 
-def test_registration_rejects_pending_event_and_closed_deadline(registration_event):
-    db = SessionLocal()
-    event = db.get(Event, registration_event)
-    event.status = EventStatus.PENDING
-    db.commit()
-    pending = client.post(
-        f"/api/events/{registration_event}/registrations",
-        json={"attendee_name": "Ada", "attendee_email": "ada@example.com"},
-    )
-    event.status = EventStatus.APPROVED
-    event.registration_deadline = datetime.utcnow() - timedelta(seconds=1)
-    db.commit()
-    closed = client.post(
-        f"/api/events/{registration_event}/registrations",
-        json={"attendee_name": "Grace", "attendee_email": "grace@example.com"},
-    )
-    db.close()
 
-    assert pending.status_code == 409
-    assert closed.status_code == 409
+def test_registration_rejects_non_upcoming_event_and_closed_deadline(
+    registration_event,
+):
+    db = SessionLocal()
+    try:
+        event = db.get(Event, registration_event)
+
+        # Registrations must be rejected once an event is ongoing.
+        event.status = EventStatus.ONGOING
+        db.commit()
+
+        non_upcoming = client.post(
+            f"/api/events/{registration_event}/registrations",
+            json={
+                "attendee_name": "Ada",
+                "attendee_email": "ada@example.com",
+            },
+        )
+
+        # Upcoming events must also reject registrations after the deadline.
+        event.status = EventStatus.UPCOMING
+        event.registration_deadline = datetime.utcnow() - timedelta(seconds=1)
+        db.commit()
+
+        closed = client.post(
+            f"/api/events/{registration_event}/registrations",
+            json={
+                "attendee_name": "Grace",
+                "attendee_email": "grace@example.com",
+            },
+        )
+
+        assert non_upcoming.status_code == 409
+        assert closed.status_code == 409
+    finally:
+        db.close()
 
 
 def test_capacity_rejects_additional_registration(registration_event):
