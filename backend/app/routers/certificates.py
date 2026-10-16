@@ -1,8 +1,10 @@
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.current_user import get_current_profile
 from app.database.session import get_db
+from app.models.user import User, UserRole
 from app.schemas.certificate import (
     CertificateCreate,
     CertificateResponse,
@@ -28,8 +30,9 @@ router = APIRouter(
 def issue_certificate_endpoint(
     certificate_data: CertificateCreate,
     db: Session = Depends(get_db),
+    issuer: User = Depends(get_current_profile),
 ):
-    return issue_certificate(db, certificate_data)
+    return issue_certificate(db, certificate_data, issuer)
 
 
 @router.get(
@@ -39,7 +42,14 @@ def issue_certificate_endpoint(
 def list_certificates_endpoint(
     recipient_id: str,
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_profile),
 ):
+    if user.role != UserRole.STUDENT or str(user.id) != recipient_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only view your own certificates",
+        )
+
     return list_recipient_certificates(db, recipient_id)
 
 
