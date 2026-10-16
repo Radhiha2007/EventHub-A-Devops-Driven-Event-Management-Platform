@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.certificate import Certificate
-from app.models.event import Event
+from app.models.event import Event, EventStatus
 from app.schemas.certificate import CertificateCreate
 
 
@@ -17,6 +17,11 @@ def issue_certificate(db: Session, data: CertificateCreate):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found",
+        )
+    if event.status != EventStatus.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Certificates can only be issued for completed events",
         )
 
     existing = (

@@ -4,6 +4,7 @@ from app.models.registration import Registration
 from app.models.feedback import Feedback
 from app.models.notification import Notification, NotificationType
 from app.models.certificate import Certificate
+from app.models.user import User, UserRole
 
 __all__ = [
     "Club",
@@ -14,4 +15,6 @@ __all__ = [
     "Notification",
     "NotificationType",
     "Certificate",
+    "User",
+    "UserRole",
 ]
