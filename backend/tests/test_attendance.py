@@ -113,7 +113,7 @@ def test_check_in_accepts_credential_once_and_rejects_replay(registered_attendee
     assert "already been checked in" in replay.json()["detail"]
 
 
-def test_check_in_rejects_invalid_credential(test_auth_context):
+def test_check_in_rejects_invalid_credential(registered_attendee, test_auth_context):
     response = client.post(
         "/api/attendance/check-in",
         json={"credential": "x" * 32},
