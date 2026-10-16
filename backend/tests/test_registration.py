@@ -1,23 +1,61 @@
 from datetime import date, datetime, time, timedelta
+from uuid import uuid4
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
+from fastapi import Request
 from fastapi.testclient import TestClient
 
+from app.core.auth import get_current_user
 from app.database.session import SessionLocal
 from app.main import app
 from app.models.club import Club
 from app.models.event import Event, EventStatus
+from app.models.user import User, UserRole
 
 
 client = TestClient(app)
 
 
-@pytest.fixture
-def registration_event():
+@pytest.fixture(autouse=True)
+def test_auth_context():
+    tenant_id = f"registration-test-{uuid4()}"
+    default_email = f"student-{uuid4().hex[:8]}@example.com"
+    club_email = "club-registration@example.com"
+    previous_overrides = app.dependency_overrides.copy()
+
+    def current_user_claims(request: Request):
+        email = request.headers.get("x-test-email", default_email).strip().lower()
+        return {
+            "tid": tenant_id,
+            "oid": "club-account" if email == club_email else email,
+            "preferred_username": email,
+            "name": email.split("@", 1)[0],
+        }
+
+    app.dependency_overrides[get_current_user] = current_user_claims
+    yield {"tenant_id": tenant_id, "default_email": default_email, "club_email": club_email}
+    app.dependency_overrides.clear()
+    app.dependency_overrides.update(previous_overrides)
     db = SessionLocal()
-    club = Club(name="Registration Test Club")
+    db.query(User).filter(User.entra_tenant_id == tenant_id).delete(synchronize_session=False)
+    db.commit()
+    db.close()
+
+
+@pytest.fixture
+def registration_event(test_auth_context):
+    db = SessionLocal()
+    club = Club(name="Registration Test Club", contact_email=test_auth_context["club_email"])
     db.add(club)
+    club_user = User(
+        entra_tenant_id=test_auth_context["tenant_id"],
+        entra_object_id="club-account",
+        email=test_auth_context["club_email"],
+        full_name="Registration Test Club",
+        role=UserRole.CLUB,
+    )
+    db.add(club_user)
     db.flush()
     event = Event(
         club_id=club.id,
@@ -43,19 +81,22 @@ def registration_event():
         db.close()
 
 
-def test_registration_normalizes_email_and_returns_one_time_credential(registration_event):
+def test_registration_uses_verified_student_identity_and_returns_one_time_credential(registration_event, test_auth_context):
     response = client.post(
         f"/api/events/{registration_event}/registrations",
-        json={"attendee_name": "  Ada Lovelace ", "attendee_email": " ADA@EXAMPLE.COM "},
+        json={"attendee_name": "Someone Else", "attendee_email": "other@example.com"},
     )
 
     assert response.status_code == 201
     body = response.json()
-    assert body["attendee_name"] == "Ada Lovelace"
-    assert body["attendee_email"] == "ada@example.com"
+    assert body["attendee_name"] == test_auth_context["default_email"].split("@", 1)[0]
+    assert body["attendee_email"] == test_auth_context["default_email"]
     assert len(body["qr_credential"]) >= 32
 
-    listing = client.get(f"/api/events/{registration_event}/registrations")
+    listing = client.get(
+        f"/api/events/{registration_event}/registrations",
+        headers={"x-test-email": test_auth_context["club_email"]},
+    )
     assert listing.status_code == 200
     assert "qr_credential" not in listing.json()[0]
     assert "qr_credential_hash" not in listing.json()[0]
@@ -70,17 +111,11 @@ def test_duplicate_email_is_rejected_after_normalization(registration_event):
     assert "already registered" in duplicate.json()["detail"]
 
 
-def test_registration_rejects_invalid_email_and_missing_event():
-    invalid = client.post(
-        "/api/events/00000000-0000-0000-0000-000000000001/registrations",
-        json={"attendee_name": "Ada", "attendee_email": "not-an-email"},
-    )
+def test_registration_rejects_missing_event():
     missing = client.post(
         "/api/events/00000000-0000-0000-0000-000000000001/registrations",
-        json={"attendee_name": "Ada", "attendee_email": "ada@example.com"},
     )
 
-    assert invalid.status_code == 422
     assert missing.status_code == 404
 
 
@@ -109,8 +144,11 @@ def test_registration_rejects_pending_event_and_closed_deadline(registration_eve
 def test_capacity_rejects_additional_registration(registration_event):
     path = f"/api/events/{registration_event}/registrations"
     for email in ("one@example.com", "two@example.com"):
-        assert client.post(path, json={"attendee_name": "Attendee", "attendee_email": email}).status_code == 201
-    full = client.post(path, json={"attendee_name": "Three", "attendee_email": "three@example.com"})
+        assert client.post(
+            path,
+            headers={"x-test-email": email},
+        ).status_code == 201
+    full = client.post(path, headers={"x-test-email": "three@example.com"})
 
     assert full.status_code == 409
     assert "capacity" in full.json()["detail"]
@@ -124,7 +162,7 @@ def test_concurrent_registrations_do_not_exceed_capacity(registration_event):
     path = f"/api/events/{registration_event}/registrations"
 
     def submit(email):
-        return client.post(path, json={"attendee_name": "Attendee", "attendee_email": email}).status_code
+        return client.post(path, headers={"x-test-email": email}).status_code
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         statuses = list(executor.map(submit, ("one@example.com", "two@example.com")))

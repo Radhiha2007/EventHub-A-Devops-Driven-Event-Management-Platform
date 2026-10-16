@@ -4,10 +4,13 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.core.club_access import require_club_email_access
 from app.core.permissions import require_roles
 from app.models.user import UserRole
 from app.database.session import get_db
+from app.models.club import Club
 from app.models.event import EventStatus
+from app.models.user import User
 from app.schemas.event import (
     EventCreate,
     EventResponse,
@@ -38,8 +41,12 @@ router = APIRouter(
 def create_event_endpoint(
     event_data: EventCreate,
     db: Session = Depends(get_db),
-    _user=Depends(require_roles(UserRole.CLUB)),
+    user: User = Depends(require_roles(UserRole.CLUB)),
 ):
+    club = db.query(Club).filter(Club.id == event_data.club_id).first()
+    if club is None:
+        raise HTTPException(status_code=404, detail="Club not found")
+    require_club_email_access(user, club.contact_email)
     return create_event(db, event_data)
 
 
@@ -92,7 +99,7 @@ def update_event_endpoint(
     event_id: UUID,
     event_data: EventUpdate,
     db: Session = Depends(get_db),
-    _user=Depends(require_roles(UserRole.CLUB)),
+    user: User = Depends(require_roles(UserRole.CLUB)),
 ):
     event = get_event(db, event_id)
 
@@ -102,6 +109,7 @@ def update_event_endpoint(
             detail="Event not found",
         )
 
+    require_club_email_access(user, event.club.contact_email)
     return update_event(db, event, event_data)
 
 
@@ -115,7 +123,7 @@ def update_event_status_endpoint(
     event_id: UUID,
     status_data: EventStatusUpdate,
     db: Session = Depends(get_db),
-    _user=Depends(require_roles(UserRole.CLUB)),
+    user: User = Depends(require_roles(UserRole.CLUB)),
 ):
     event = get_event(db, event_id)
 
@@ -125,6 +133,7 @@ def update_event_status_endpoint(
             detail="Event not found",
         )
 
+    require_club_email_access(user, event.club.contact_email)
     try:
         return update_event_status(db, event, status_data)
     except ValueError as exc:

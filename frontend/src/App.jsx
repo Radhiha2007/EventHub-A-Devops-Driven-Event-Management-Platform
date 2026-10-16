@@ -7,6 +7,7 @@ import { loginRequest } from "./authConfig";
 import EventHubHome from "./components/eventhub/EventHubHome";
 import { LoginScreen, SignupScreen } from "./components/eventhub/AuthScreens";
 import RegistrationPage from "./RegistrationPage";
+import AttendanceScanner from "./AttendanceScanner";
 
 function BackendAuthStatus() {
   const { instance, accounts } = useMsal();
@@ -84,6 +85,7 @@ function App() {
   if (path === "/login") return <LoginScreen />;
   if (path === "/signup") return <SignupScreen />;
   if (path === "/register") return <RegistrationPage />;
+  if (path === "/club/attendance") return <AttendanceScanner />;
   return <EventHubHome />;
 }
 

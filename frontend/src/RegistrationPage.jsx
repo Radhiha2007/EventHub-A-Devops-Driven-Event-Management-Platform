@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import { InteractionRequiredAuthError } from "@azure/msal-browser";
+import { useIsAuthenticated, useMsal } from "@azure/msal-react";
+import { loginRequest } from "./authConfig";
 import api from "./services/api";
 
 function formatEventDate(value) {
@@ -31,8 +34,14 @@ function getApiErrorMessage(error) {
   const detail = error.response?.data?.detail;
   const message = typeof detail === "string" ? detail.toLowerCase() : "";
 
+  if (status === 401) {
+    return "Sign in with your Student account to register.";
+  }
+  if (status === 403) {
+    return "Registration is available to Student accounts only.";
+  }
   if (status === 409 && message.includes("already registered")) {
-    return "This email is already registered for this event.";
+    return "This account is already registered for this event.";
   }
   if (status === 409 && message.includes("capacity")) {
     return "This event is full. Registration is no longer available.";
@@ -57,11 +66,54 @@ function getApiErrorMessage(error) {
 }
 
 export default function RegistrationPage() {
+  const { instance, accounts } = useMsal();
+  const isAuthenticated = useIsAuthenticated();
+  const account = accounts[0];
+  const [profile, setProfile] = useState(null);
+  const [profileStatus, setProfileStatus] = useState("signed_out");
   const [backendStatus, setBackendStatus] = useState("Checking...");
   const [events, setEvents] = useState([]);
   const [eventsState, setEventsState] = useState("loading");
   const [eventsError, setEventsError] = useState("");
   const [registrationStates, setRegistrationStates] = useState({});
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!isAuthenticated || !account) {
+      setProfile(null);
+      setProfileStatus("signed_out");
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setProfileStatus("loading");
+    instance
+      .acquireTokenSilent({ ...loginRequest, account })
+      .then((tokenResponse) =>
+        api.get("/users/me", {
+          headers: { Authorization: `Bearer ${tokenResponse.accessToken}` },
+        }),
+      )
+      .then((response) => {
+        if (!isMounted) return;
+        setProfile(response.data);
+        setProfileStatus("loaded");
+      })
+      .catch(async (error) => {
+        if (error instanceof InteractionRequiredAuthError) {
+          await instance.acquireTokenRedirect({ ...loginRequest, account });
+          return;
+        }
+        if (!isMounted) return;
+        setProfileStatus("error");
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [account, instance, isAuthenticated]);
 
   useEffect(() => {
     let isMounted = true;
@@ -95,11 +147,13 @@ export default function RegistrationPage() {
 
   async function handleRegistration(eventId, formEvent) {
     formEvent.preventDefault();
-    const formData = new FormData(formEvent.currentTarget);
-    const payload = {
-      attendee_name: formData.get("attendee_name").trim(),
-      attendee_email: formData.get("attendee_email").trim(),
-    };
+    if (!profile || profile.role !== "STUDENT" || !profile.email || !profile.full_name) {
+      setRegistrationStates((current) => ({
+        ...current,
+        [eventId]: { status: "error", message: "A complete Student profile is required to register." },
+      }));
+      return;
+    }
 
     setRegistrationStates((current) => ({
       ...current,
@@ -107,9 +161,20 @@ export default function RegistrationPage() {
     }));
 
     try {
+      let tokenResponse;
+      try {
+        tokenResponse = await instance.acquireTokenSilent({ ...loginRequest, account });
+      } catch (error) {
+        if (error instanceof InteractionRequiredAuthError) {
+          await instance.acquireTokenRedirect({ ...loginRequest, account });
+          return;
+        }
+        throw error;
+      }
       const response = await api.post(
         `/api/events/${eventId}/registrations`,
-        payload,
+        null,
+        { headers: { Authorization: `Bearer ${tokenResponse.accessToken}` } },
       );
       setRegistrationStates((current) => ({
         ...current,
@@ -284,44 +349,56 @@ export default function RegistrationPage() {
                           </button>
                         </section>
                       ) : (
-                        <form
-                          className="registration-form"
-                          onSubmit={(formEvent) => handleRegistration(event.id, formEvent)}
-                        >
+                        <section className="registration-form">
                           <h4>Save your spot</h4>
-                          <label htmlFor={`attendee-name-${event.id}`}>Full name</label>
-                          <input
-                            id={`attendee-name-${event.id}`}
-                            name="attendee_name"
-                            type="text"
-                            autoComplete="name"
-                            maxLength="255"
-                            placeholder="Your name"
-                            required
-                          />
-                          <label htmlFor={`attendee-email-${event.id}`}>Email address</label>
-                          <input
-                            id={`attendee-email-${event.id}`}
-                            name="attendee_email"
-                            type="email"
-                            autoComplete="email"
-                            maxLength="320"
-                            placeholder="you@example.com"
-                            required
-                          />
-                          {registrationState?.status === "error" && (
+                          {!isAuthenticated ? (
+                            <>
+                              <p>Sign in with your Student account to register.</p>
+                              <button
+                                className="register-button"
+                                type="button"
+                                onClick={() => instance.loginRedirect(loginRequest)}
+                              >
+                                Sign in with Microsoft
+                              </button>
+                            </>
+                          ) : profileStatus === "loading" ? (
+                            <p role="status">Loading your verified profile…</p>
+                          ) : profileStatus === "error" ? (
                             <p className="form-error" role="alert">
-                              {registrationState.message}
+                              We could not load your profile. Refresh the page and try again.
                             </p>
+                          ) : profile?.role !== "STUDENT" ? (
+                            <>
+                              <p>Event registration is available to Student accounts.</p>
+                              {profile?.role === "CLUB" && (
+                                <a className="register-button" href="/club/attendance">
+                                  Open club attendance
+                                </a>
+                              )}
+                            </>
+                          ) : !profile.full_name || !profile.email ? (
+                            <p>Complete your Student profile before registering.</p>
+                          ) : (
+                            <>
+                              <p>Registering as <strong>{profile.full_name}</strong> ({profile.email})</p>
+                              {registrationState?.status === "error" && (
+                                <p className="form-error" role="alert">
+                                  {registrationState.message}
+                                </p>
+                              )}
+                              <form onSubmit={(formEvent) => handleRegistration(event.id, formEvent)}>
+                                <button
+                                  className="register-button"
+                                  type="submit"
+                                  disabled={registrationState?.status === "loading"}
+                                >
+                                  {registrationState?.status === "loading" ? "Registering…" : "Register for free"}
+                                </button>
+                              </form>
+                            </>
                           )}
-                          <button
-                            className="register-button"
-                            type="submit"
-                            disabled={registrationState?.status === "loading"}
-                          >
-                            {registrationState?.status === "loading" ? "Registering…" : "Register for free"}
-                          </button>
-                        </form>
+                        </section>
                       )}
                     </div>
                   </article>
