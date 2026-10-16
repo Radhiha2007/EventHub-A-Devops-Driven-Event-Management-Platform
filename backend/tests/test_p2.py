@@ -82,7 +82,7 @@ def test_create_event():
 
         assert response.status_code == 201
         assert response.json()["title"] == "Pytest Event"
-        assert response.json()["status"] == "APPROVED"
+        assert response.json()["status"] == "UPCOMING"
 
     finally:
         db.close()
@@ -108,7 +108,7 @@ def test_event_search():
             end_time=time(12, 0),
             capacity=100,
             registration_deadline=datetime(2026, 10, 31, 23, 59),
-            status=EventStatus.PENDING,
+            status=EventStatus.UPCOMING,
         )
 
         db.add(event)
@@ -126,18 +126,18 @@ def test_event_search():
         db.close()
 
 
-def test_event_approval():
+def test_event_status_transition_to_ongoing():
     db = SessionLocal()
 
     try:
-        club = Club(name="Approval Test Club", contact_email="club@example.com")
+        club = Club(name="Lifecycle Test Club", contact_email="club@example.com")
         db.add(club)
         db.commit()
         db.refresh(club)
 
         event = Event(
             club_id=club.id,
-            title="Approval Test Event",
+            title="Lifecycle Test Event",
             category="Technical",
             venue="Hall 1",
             event_date=date(2026, 11, 5),
@@ -145,7 +145,7 @@ def test_event_approval():
             end_time=time(12, 0),
             capacity=50,
             registration_deadline=datetime(2026, 11, 4, 23, 59),
-            status=EventStatus.PENDING,
+            status=EventStatus.UPCOMING,
         )
 
         db.add(event)
@@ -154,14 +154,14 @@ def test_event_approval():
 
         response = client.patch(
             f"/api/events/{event.id}/status",
-            json={"status": "APPROVED"},
+            json={"status": "ONGOING"},
         )
 
         assert response.status_code == 200
-        assert response.json()["status"] == "APPROVED"
+        assert response.json()["status"] == "ONGOING"
+
     finally:
         db.close()
-
 def test_event_can_be_completed():
     db = SessionLocal()
 
@@ -181,7 +181,7 @@ def test_event_can_be_completed():
             end_time=time(12, 0),
             capacity=50,
             registration_deadline=datetime(2026, 11, 9, 23, 59),
-            status=EventStatus.PENDING,
+            status=EventStatus.UPCOMING,
         )
 
         db.add(event)

@@ -10,12 +10,10 @@ from app.database.base import Base
 
 
 class EventStatus(str, Enum):
-    PENDING = "PENDING"
-    APPROVED = "APPROVED"
-    REJECTED = "REJECTED"
-    CANCELLED = "CANCELLED"
+    UPCOMING = "UPCOMING"
+    ONGOING = "ONGOING"
     COMPLETED = "COMPLETED"
-
+    CANCELLED = "CANCELLED"
 class Event(Base):
     __tablename__ = "events"
 
@@ -83,7 +81,7 @@ class Event(Base):
 
     status: Mapped[EventStatus] = mapped_column(
         SQLEnum(EventStatus),
-        default=EventStatus.APPROVED,
+        default=EventStatus.UPCOMING,
         nullable=False,
     )
 

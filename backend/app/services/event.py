@@ -77,19 +77,17 @@ def update_event_status(
     status_data: EventStatusUpdate,
 ) -> Event:
     allowed_transitions = {
-        EventStatus.PENDING: {
-            EventStatus.CANCELLED,
+        EventStatus.UPCOMING: {
+            EventStatus.ONGOING,
             EventStatus.COMPLETED,
-            EventStatus.APPROVED,
-            EventStatus.REJECTED,
-        },
-        EventStatus.APPROVED: {
             EventStatus.CANCELLED,
-            EventStatus.COMPLETED,
         },
-        EventStatus.REJECTED: set(),
-        EventStatus.CANCELLED: set(),
+        EventStatus.ONGOING: {
+            EventStatus.COMPLETED,
+            EventStatus.CANCELLED,
+        },
         EventStatus.COMPLETED: set(),
+        EventStatus.CANCELLED: set(),
     }
 
     if status_data.status == event.status:
@@ -106,7 +104,6 @@ def update_event_status(
     db.refresh(event)
 
     return event
-
 
 def delete_event(db: Session, event: Event) -> None:
     db.delete(event)

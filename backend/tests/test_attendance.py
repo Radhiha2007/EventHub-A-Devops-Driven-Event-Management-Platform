@@ -68,7 +68,7 @@ def registered_attendee(test_auth_context):
         end_time=time(12),
         capacity=2,
         registration_deadline=datetime.utcnow() + timedelta(days=1),
-        status=EventStatus.APPROVED,
+        status=EventStatus.UPCOMING,
     )
     db.add(event)
     db.commit()

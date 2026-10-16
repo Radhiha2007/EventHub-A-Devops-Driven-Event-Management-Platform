@@ -155,7 +155,7 @@ def test_issue_certificate_for_uncompleted_event(certificate_context):
     db = SessionLocal()
     try:
         event = db.get(Event, context["event_id"])
-        event.status = EventStatus.APPROVED
+        event.status = EventStatus.UPCOMING
         db.commit()
     finally:
         db.close()
