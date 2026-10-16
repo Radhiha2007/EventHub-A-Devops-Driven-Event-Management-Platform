@@ -23,7 +23,7 @@ def club_auth_overrides():
         "name": "Test Club User",
     }
     app.dependency_overrides[get_current_profile] = (
-        lambda: SimpleNamespace(role=UserRole.CLUB)
+        lambda: SimpleNamespace(role=UserRole.CLUB, email="club@example.com")
     )
     yield
     app.dependency_overrides.clear()
@@ -39,7 +39,7 @@ def test_create_club():
         json={
             "name": "Pytest Club",
             "description": "Test club",
-            "contact_email": "pytest@example.com",
+            "contact_email": "club@example.com",
             "advisor_name": "Test Advisor",
         },
     )
@@ -59,7 +59,7 @@ def test_create_event():
     db = SessionLocal()
 
     try:
-        club = Club(name="Pytest Event Club")
+        club = Club(name="Pytest Event Club", contact_email="club@example.com")
         db.add(club)
         db.commit()
         db.refresh(club)
@@ -92,7 +92,7 @@ def test_event_search():
     db = SessionLocal()
 
     try:
-        club = Club(name="Search Test Club")
+        club = Club(name="Search Test Club", contact_email="club@example.com")
         db.add(club)
         db.commit()
         db.refresh(club)
@@ -130,7 +130,7 @@ def test_event_approval():
     db = SessionLocal()
 
     try:
-        club = Club(name="Approval Test Club")
+        club = Club(name="Approval Test Club", contact_email="club@example.com")
         db.add(club)
         db.commit()
         db.refresh(club)
@@ -166,7 +166,7 @@ def test_event_can_be_completed():
     db = SessionLocal()
 
     try:
-        club = Club(name="Completion Test Club")
+        club = Club(name="Completion Test Club", contact_email="club@example.com")
         db.add(club)
         db.commit()
         db.refresh(club)

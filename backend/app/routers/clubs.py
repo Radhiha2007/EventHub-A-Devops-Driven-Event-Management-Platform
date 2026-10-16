@@ -3,8 +3,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.club_access import require_club_email_access
 from app.core.permissions import require_roles
-from app.models.user import UserRole
+from app.models.user import User, UserRole
 from app.database.session import get_db
 from app.schemas.club import ClubCreate, ClubResponse, ClubUpdate
 from app.services.club import create_club, get_club, get_clubs, update_club
@@ -24,8 +25,9 @@ router = APIRouter(
 def create_club_endpoint(
     club_data: ClubCreate,
     db: Session = Depends(get_db),
-    _user=Depends(require_roles(UserRole.CLUB)),
+    user: User = Depends(require_roles(UserRole.CLUB)),
 ):
+    require_club_email_access(user, club_data.contact_email)
     return create_club(db, club_data)
 
 
@@ -66,7 +68,7 @@ def update_club_endpoint(
     club_id: UUID,
     club_data: ClubUpdate,
     db: Session = Depends(get_db),
-    _user=Depends(require_roles(UserRole.CLUB)),
+    user: User = Depends(require_roles(UserRole.CLUB)),
 ):
     club = get_club(db, club_id)
 
@@ -76,4 +78,11 @@ def update_club_endpoint(
             detail="Club not found",
         )
 
+    require_club_email_access(user, club.contact_email)
+    requested_contact_email = club_data.contact_email
+    if requested_contact_email is not None and requested_contact_email.strip().casefold() != (user.email or "").strip().casefold():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The Club contact email must match the signed-in Club account",
+        )
     return update_club(db, club, club_data)

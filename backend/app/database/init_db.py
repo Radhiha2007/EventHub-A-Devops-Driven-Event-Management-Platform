@@ -30,6 +30,11 @@ def init_db():
                 )
             )
 
+    # Add the verified-user registration link to existing databases too.
+    from migrations.add_registration_user_id import migrate as migrate_registration_user_id
+
+    migrate_registration_user_id()
+
 
 if __name__ == "__main__":
     init_db()
