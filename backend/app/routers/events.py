@@ -4,6 +4,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.core.permissions import require_roles
+from app.models.user import UserRole
 from app.database.session import get_db
 from app.models.event import EventStatus
 from app.schemas.event import (
@@ -36,6 +38,7 @@ router = APIRouter(
 def create_event_endpoint(
     event_data: EventCreate,
     db: Session = Depends(get_db),
+    _user=Depends(require_roles(UserRole.CLUB)),
 ):
     return create_event(db, event_data)
 
@@ -89,6 +92,7 @@ def update_event_endpoint(
     event_id: UUID,
     event_data: EventUpdate,
     db: Session = Depends(get_db),
+    _user=Depends(require_roles(UserRole.CLUB)),
 ):
     event = get_event(db, event_id)
 
@@ -111,6 +115,7 @@ def update_event_status_endpoint(
     event_id: UUID,
     status_data: EventStatusUpdate,
     db: Session = Depends(get_db),
+    _user=Depends(require_roles(UserRole.CLUB)),
 ):
     event = get_event(db, event_id)
 

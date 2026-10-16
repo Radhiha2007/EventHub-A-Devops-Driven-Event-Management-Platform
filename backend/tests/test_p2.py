@@ -1,11 +1,33 @@
 from datetime import date, datetime, time
 
 from fastapi.testclient import TestClient
+from types import SimpleNamespace
+import pytest
 
+from app.core.auth import get_current_user
+from app.core.current_user import get_current_profile
+from app.models.user import UserRole
 from app.main import app
 from app.models.club import Club
 from app.models.event import Event, EventStatus
 from app.database.session import SessionLocal
+
+
+@pytest.fixture(autouse=True)
+def club_auth_overrides():
+    previous_overrides = app.dependency_overrides.copy()
+    app.dependency_overrides[get_current_user] = lambda: {
+        "tid": "test-tenant",
+        "oid": "p2-test-user",
+        "preferred_username": "club@example.com",
+        "name": "Test Club User",
+    }
+    app.dependency_overrides[get_current_profile] = (
+        lambda: SimpleNamespace(role=UserRole.CLUB)
+    )
+    yield
+    app.dependency_overrides.clear()
+    app.dependency_overrides.update(previous_overrides)
 
 
 client = TestClient(app)

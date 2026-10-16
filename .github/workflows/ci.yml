@@ -14,7 +14,9 @@ jobs:
   backend:
     name: Backend CI
     runs-on: ubuntu-latest
-
+    env:
+      ENTRA_TENANT_ID: 5beb351c-3fb8-418f-b612-fe36ace96ef3
+      ENTRA_API_CLIENT_ID: 0be8884f-4a48-47e1-ba49-80770c4debc7
     services:
       postgres:
         image: postgres:16

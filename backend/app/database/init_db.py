@@ -1,6 +1,13 @@
 from app.database.base import Base
 from app.database.session import engine
-from app.models import Club, Event
+from app.models import (
+    Certificate,
+    Club,
+    Event,
+    Feedback,
+    Notification,
+    User,
+)
 
 
 def init_db():
@@ -9,4 +16,4 @@ def init_db():
 
 if __name__ == "__main__":
     init_db()
-    print("P2 database tables created successfully")
+    print("EventHub database tables created successfully")
