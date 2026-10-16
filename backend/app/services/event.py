@@ -70,13 +70,38 @@ def update_event(
     return event
 
 
+
 def update_event_status(
     db: Session,
     event: Event,
     status_data: EventStatusUpdate,
 ) -> Event:
-    event.status = status_data.status
+    allowed_transitions = {
+        EventStatus.PENDING: {
+            EventStatus.CANCELLED,
+            EventStatus.COMPLETED,
+            EventStatus.APPROVED,
+            EventStatus.REJECTED,
+        },
+        EventStatus.APPROVED: {
+            EventStatus.CANCELLED,
+            EventStatus.COMPLETED,
+        },
+        EventStatus.REJECTED: set(),
+        EventStatus.CANCELLED: set(),
+        EventStatus.COMPLETED: set(),
+    }
 
+    if status_data.status == event.status:
+        return event
+
+    if status_data.status not in allowed_transitions[event.status]:
+        raise ValueError(
+            f"Cannot change event status from "
+            f"{event.status.value} to {status_data.status.value}"
+        )
+
+    event.status = status_data.status
     db.commit()
     db.refresh(event)
 

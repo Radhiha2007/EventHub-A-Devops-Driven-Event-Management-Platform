@@ -14,7 +14,7 @@ class EventStatus(str, Enum):
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
     CANCELLED = "CANCELLED"
-
+    COMPLETED = "COMPLETED"
 
 class Event(Base):
     __tablename__ = "events"
@@ -83,7 +83,7 @@ class Event(Base):
 
     status: Mapped[EventStatus] = mapped_column(
         SQLEnum(EventStatus),
-        default=EventStatus.PENDING,
+        default=EventStatus.APPROVED,
         nullable=False,
     )
 
