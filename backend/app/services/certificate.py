@@ -11,7 +11,8 @@ from app.models.event import Event, EventStatus
 from app.models.registration import Registration
 from app.models.user import User, UserRole
 from app.schemas.certificate import CertificateCreate
-
+from app.models.notification import NotificationType
+from app.services.notification import create_notifications
 
 def issue_certificate(
     db: Session,
@@ -91,7 +92,20 @@ def issue_certificate(
     db.add(certificate)
     db.commit()
     db.refresh(certificate)
+
+    create_notifications(
+        db=db,
+        recipient_ids=[str(recipient_uuid)],
+        title="Certificate issued",
+        message=(
+            f"Your certificate for '{event.title}' has been issued "
+            "and is ready to view."
+        ),
+        notification_type=NotificationType.GENERAL,
+    )
+
     return certificate
+
 
 
 def get_certificate_by_code(db: Session, certificate_code: str) -> Certificate:
