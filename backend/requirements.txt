@@ -32,3 +32,4 @@ websockets==17.1
 PyJWT==2.10.1
 cryptography==46.0.3
 prometheus-fastapi-instrumentator==8.1.0
+reportlab==5.0.1

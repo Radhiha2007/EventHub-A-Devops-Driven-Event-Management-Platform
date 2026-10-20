@@ -11,7 +11,8 @@ from app.models.event import Event, EventStatus
 from app.models.registration import Registration
 from app.models.user import User
 from app.schemas.registration import RegistrationCreate
-
+from app.models.notification import NotificationType
+from app.services.notification import create_notifications
 
 class RegistrationError(Exception):
     def __init__(self, status_code: int, detail: str):
@@ -75,9 +76,11 @@ def get_registration_by_credential(db: Session, credential: str) -> Registration
     )
 
 
+
 def check_in(db: Session, credential: str) -> tuple[Registration, bool]:
     credential_hash = hashlib.sha256(credential.encode("utf-8")).hexdigest()
     checked_in_at = datetime.utcnow()
+
     result = db.execute(
         update(Registration)
         .where(
@@ -85,20 +88,46 @@ def check_in(db: Session, credential: str) -> tuple[Registration, bool]:
             Registration.checked_in_at.is_(None),
         )
         .values(checked_in_at=checked_in_at)
-        .returning(Registration.id, Registration.event_id, Registration.attendee_name, Registration.checked_in_at)
+        .returning(
+            Registration.id,
+            Registration.event_id,
+            Registration.attendee_name,
+            Registration.checked_in_at,
+        )
     )
+
     row = result.one_or_none()
+
     if row is not None:
         db.commit()
         registration = db.get(Registration, row.id)
+
+        # Notify only when the student's attendance is recorded for the first time.
+        if registration is not None and registration.user_id is not None:
+            event = db.get(Event, registration.event_id)
+            create_notifications(
+                db=db,
+                recipient_ids=[str(registration.user_id)],
+                title="Attendance recorded",
+                message=(
+                    f"Your attendance for '{event.title}' has been recorded."
+                    if event is not None
+                    else "Your event attendance has been recorded."
+                ),
+                notification_type=NotificationType.GENERAL,
+            )
+
         return registration, True
 
     db.rollback()
+
     existing = (
         db.query(Registration)
         .filter(Registration.qr_credential_hash == credential_hash)
         .first()
     )
+
     if existing is None:
         raise RegistrationError(404, "Invalid QR credential")
+
     raise RegistrationError(409, "Registration has already been checked in")

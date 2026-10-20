@@ -1,10 +1,17 @@
+
 from datetime import date
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
 from app.models.event import Event, EventStatus
+from app.models.notification import NotificationType
 from app.schemas.event import EventCreate, EventStatusUpdate, EventUpdate
+from app.services.notification import (
+    create_notifications,
+    get_active_student_ids,
+    get_event_student_ids,
+)
 
 
 def create_event(db: Session, event_data: EventCreate) -> Event:
@@ -13,6 +20,14 @@ def create_event(db: Session, event_data: EventCreate) -> Event:
     db.add(event)
     db.commit()
     db.refresh(event)
+
+    student_ids = get_active_student_ids(db)
+    create_notifications(
+        db=db,
+        recipient_ids=student_ids,
+        title="New event created",
+        message=f"A new event, '{event.title}', has been created.",
+    )
 
     return event
 
@@ -67,8 +82,17 @@ def update_event(
     db.commit()
     db.refresh(event)
 
-    return event
+    if update_data:
+        student_ids = get_event_student_ids(db, event.id)
+        create_notifications(
+            db=db,
+            recipient_ids=student_ids,
+            title="Event updated",
+            message=f"The event '{event.title}' has been updated.",
+            notification_type=NotificationType.EVENT_UPDATE,
+        )
 
+    return event
 
 
 def update_event_status(
@@ -103,7 +127,18 @@ def update_event_status(
     db.commit()
     db.refresh(event)
 
+    if status_data.status == EventStatus.CANCELLED:
+        student_ids = get_event_student_ids(db, event.id)
+        create_notifications(
+            db=db,
+            recipient_ids=student_ids,
+            title="Event cancelled",
+            message=f"The event '{event.title}' has been cancelled.",
+            notification_type=NotificationType.EVENT_UPDATE,
+        )
+
     return event
+
 
 def delete_event(db: Session, event: Event) -> None:
     db.delete(event)

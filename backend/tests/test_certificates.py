@@ -258,3 +258,66 @@ def test_verify_certificate(certificate_context):
     assert response.status_code == 200, response.json()
     assert response.json()["valid"] is True
     assert response.json()["certificate_code"] == code
+
+def test_download_own_certificate_returns_pdf(certificate_context):
+    context = certificate_context
+
+    issue_response = client.post(
+        "/api/certificates/issue",
+        headers={"x-test-email": context["club_email"]},
+        json={
+            "event_id": str(context["event_id"]),
+            "recipient_id": str(context["student_id"]),
+            "recipient_name": "Test Student",
+        },
+    )
+    assert issue_response.status_code == 201, issue_response.json()
+
+    certificate_id = issue_response.json()["id"]
+    response = client.get(
+        f"/api/certificates/{certificate_id}/download",
+        headers={"x-test-email": context["student_email"]},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith("application/pdf")
+    assert response.content.startswith(b"%PDF-")
+
+
+def test_student_cannot_download_another_students_certificate(
+    certificate_context,
+):
+    context = certificate_context
+
+    issue_response = client.post(
+        "/api/certificates/issue",
+        headers={"x-test-email": context["club_email"]},
+        json={
+            "event_id": str(context["event_id"]),
+            "recipient_id": str(context["student_id"]),
+            "recipient_name": "Test Student",
+        },
+    )
+    assert issue_response.status_code == 201, issue_response.json()
+
+    certificate_id = issue_response.json()["id"]
+
+    # A different email resolves to a different student in this test tenant.
+    other_email = f"other-{uuid.uuid4().hex[:8]}@example.com"
+    response = client.get(
+        f"/api/certificates/{certificate_id}/download",
+        headers={"x-test-email": other_email},
+    )
+
+    assert response.status_code == 403, response.json()
+
+
+def test_download_nonexistent_certificate_returns_404(certificate_context):
+    context = certificate_context
+
+    response = client.get(
+        f"/api/certificates/{uuid.uuid4()}/download",
+        headers={"x-test-email": context["student_email"]},
+    )
+
+    assert response.status_code == 404, response.json()
