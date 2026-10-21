@@ -14,13 +14,17 @@ from app.schemas.registration import (
     CheckInResponse,
     RegistrationCreate,
     RegistrationCreatedResponse,
+    RegistrationCredentialResponse,
     RegistrationResponse,
+    StudentRegistrationResponse,
 )
 from app.services.registration import (
     RegistrationError,
     check_in,
     create_registration,
     get_registration_by_credential,
+    list_user_registrations,
+    reissue_registration_qr_credential,
 )
 
 
@@ -55,6 +59,37 @@ def register_for_event(
     response = RegistrationResponse.model_validate(registration).model_dump()
     response["qr_credential"] = credential
     return response
+
+
+@router.get(
+    "/registrations/me",
+    response_model=list[StudentRegistrationResponse],
+)
+def list_my_registrations(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.STUDENT)),
+):
+    return list_user_registrations(db, user.id)
+
+
+@router.post(
+    "/registrations/{registration_id}/qr-credential",
+    response_model=RegistrationCredentialResponse,
+)
+def reissue_my_registration_qr(
+    registration_id: UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.STUDENT)),
+):
+    try:
+        credential = reissue_registration_qr_credential(
+            db,
+            registration_id,
+            user.id,
+        )
+    except RegistrationError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    return {"qr_credential": credential}
 
 
 @router.get(
