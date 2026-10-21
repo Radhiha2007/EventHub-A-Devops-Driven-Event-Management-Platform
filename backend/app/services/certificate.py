@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
-
+from sqlalchemy.exc import IntegrityError
 from app.core.club_access import require_club_email_access
 from app.models.certificate import Certificate
 from app.models.event import Event, EventStatus
@@ -88,9 +88,30 @@ def issue_certificate(
         recipient_name=registration.attendee_name,
         certificate_code=f"EVH-{secrets.token_hex(16).upper()}",
     )
-
     db.add(certificate)
-    db.commit()
+
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+
+        existing = (
+            db.query(Certificate)
+            .filter(
+                Certificate.event_id == data.event_id,
+                Certificate.recipient_id == data.recipient_id,
+            )
+            .first()
+        )
+
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Certificate already issued to this recipient for this event",
+            ) from exc
+
+        raise
+
     db.refresh(certificate)
 
     create_notifications(

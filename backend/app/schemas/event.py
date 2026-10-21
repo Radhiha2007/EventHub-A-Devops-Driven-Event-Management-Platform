@@ -1,10 +1,44 @@
+
 import uuid
 from datetime import date, datetime, time
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.event import EventStatus
 
+
+def validate_schedule(
+    event_date: date | None,
+    start_time: time | None,
+    end_time: time | None,
+    registration_deadline: datetime | None,
+) -> None:
+    if start_time is not None and end_time is not None:
+        if end_time <= start_time:
+            raise ValueError(
+                "Event end time must be later than start time"
+            )
+
+    if registration_deadline is not None:
+        if (
+            registration_deadline.tzinfo is not None
+            and registration_deadline.utcoffset() is not None
+        ):
+            raise ValueError(
+                "Registration deadline must use a timezone-naive datetime"
+            )
+
+    if (
+        event_date is not None
+        and start_time is not None
+        and registration_deadline is not None
+    ):
+        event_start = datetime.combine(event_date, start_time)
+
+        if registration_deadline >= event_start:
+            raise ValueError(
+                "Registration deadline must be before the event starts"
+            )
 
 class EventCreate(BaseModel):
     club_id: uuid.UUID
@@ -18,6 +52,16 @@ class EventCreate(BaseModel):
     end_time: time
     capacity: int = Field(gt=0)
     registration_deadline: datetime
+
+    @model_validator(mode="after")
+    def check_schedule(self):
+        validate_schedule(
+            self.event_date,
+            self.start_time,
+            self.end_time,
+            self.registration_deadline,
+        )
+        return self
 
 
 class EventUpdate(BaseModel):

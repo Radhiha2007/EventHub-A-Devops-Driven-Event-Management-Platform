@@ -28,6 +28,11 @@ def init_db():
     )
     migrate_registration_user_id()
 
+    # Prevent duplicate certificates for the same event and recipient.
+    from migrations.add_certificate_unique_constraint import (
+        migrate as migrate_certificate_unique_constraint,
+    )
+    migrate_certificate_unique_constraint()
 
 if __name__ == "__main__":
     init_db()

@@ -1,8 +1,7 @@
-
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -11,6 +10,14 @@ from app.database.base import Base
 
 class Certificate(Base):
     __tablename__ = "certificates"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "event_id",
+            "recipient_id",
+            name="uq_certificate_event_recipient",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

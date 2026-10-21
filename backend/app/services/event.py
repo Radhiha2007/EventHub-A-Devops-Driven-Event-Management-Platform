@@ -75,7 +75,15 @@ def update_event(
     event_data: EventUpdate,
 ) -> Event:
     update_data = event_data.model_dump(exclude_unset=True)
-
+    validate_schedule(
+        update_data.get("event_date", event.event_date),
+        update_data.get("start_time", event.start_time),
+        update_data.get("end_time", event.end_time),
+        update_data.get(
+            "registration_deadline",
+            event.registration_deadline,
+        ),
+    )
     for field, value in update_data.items():
         setattr(event, field, value)
 
