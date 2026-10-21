@@ -1,3 +1,4 @@
+from app.models.registration import Registration
 from datetime import date, datetime, time, timedelta
 from uuid import uuid4
 from concurrent.futures import ThreadPoolExecutor
@@ -185,3 +186,36 @@ def test_concurrent_registrations_do_not_exceed_capacity(registration_event):
         statuses = list(executor.map(submit, ("one@example.com", "two@example.com")))
 
     assert sorted(statuses) == [201, 409]
+
+
+def test_student_can_list_own_registrations(registration_event, test_auth_context):
+    # Register the default authenticated student.
+    created = client.post(f"/api/events/{registration_event}/registrations")
+    assert created.status_code == 201
+
+    response = client.get("/api/registrations/me")
+
+    assert response.status_code == 200
+    registrations = response.json()
+    assert len(registrations) == 1
+    assert registrations[0]["event_id"] == str(registration_event)
+    assert registrations[0]["event"]["title"] == "Registration Test Event"
+    assert registrations[0]["checked_in_at"] is None
+
+
+def test_student_cannot_see_another_students_registrations(
+    registration_event, test_auth_context
+):
+    # The default student registers.
+    created = client.post(f"/api/events/{registration_event}/registrations")
+    assert created.status_code == 201
+
+    # A different student should have an independent registration history.
+    other_email = "another-student@example.com"
+    response = client.get(
+        "/api/registrations/me",
+        headers={"x-test-email": other_email},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []

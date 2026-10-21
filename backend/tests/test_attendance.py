@@ -131,3 +131,68 @@ def test_registration_persists_only_credential_hash(registered_attendee):
     assert registration.qr_credential_hash != credential
     assert len(registration.qr_credential_hash) == 64
     db.close()
+
+
+def test_other_club_cannot_check_in_attendee(
+    registered_attendee, test_auth_context
+):
+    event_id, credential = registered_attendee
+    db = SessionLocal()
+
+    try:
+        other_email = f"other-club-{uuid4().hex[:8]}@example.com"
+        other_club = Club(
+            name="Other Attendance Test Club",
+            contact_email=other_email,
+        )
+        db.add(other_club)
+
+        other_club_user = User(
+            entra_tenant_id=test_auth_context["tenant_id"],
+            entra_object_id=other_email,
+            email=other_email,
+            full_name="Other Attendance Test Club",
+            role=UserRole.CLUB,
+        )
+        db.add(other_club_user)
+        db.commit()
+
+        response = client.post(
+            "/api/attendance/check-in",
+            json={"credential": credential},
+            headers={"x-test-email": other_email},
+        )
+
+        assert response.status_code in (403, 404)
+
+        # The failed attempt must not record attendance.
+        registration = (
+            db.query(Registration)
+            .filter(Registration.event_id == event_id)
+            .one()
+        )
+        db.refresh(registration)
+        assert registration.checked_in_at is None
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_student_history_shows_attendance_after_check_in(
+    registered_attendee, test_auth_context
+):
+    _, credential = registered_attendee
+
+    check_in = client.post(
+        "/api/attendance/check-in",
+        json={"credential": credential},
+        headers={"x-test-email": test_auth_context["club_email"]},
+    )
+    assert check_in.status_code == 200
+
+    history = client.get("/api/registrations/me")
+
+    assert history.status_code == 200
+    registrations = history.json()
+    assert len(registrations) == 1
+    assert registrations[0]["checked_in_at"] is not None
