@@ -5,7 +5,7 @@ from uuid import UUID
 
 from sqlalchemy import func, update
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.event import Event, EventStatus
 from app.models.registration import Registration
@@ -74,6 +74,44 @@ def get_registration_by_credential(db: Session, credential: str) -> Registration
         .filter(Registration.qr_credential_hash == credential_hash)
         .first()
     )
+
+
+def list_user_registrations(db: Session, user_id: UUID) -> list[Registration]:
+    return (
+        db.query(Registration)
+        .options(joinedload(Registration.event))
+        .filter(Registration.user_id == user_id)
+        .order_by(Registration.registered_at.desc())
+        .all()
+    )
+
+
+def reissue_registration_qr_credential(
+    db: Session,
+    registration_id: UUID,
+    user_id: UUID,
+) -> str:
+    registration = (
+        db.query(Registration)
+        .filter(
+            Registration.id == registration_id,
+            Registration.user_id == user_id,
+        )
+        .with_for_update()
+        .first()
+    )
+    if registration is None:
+        raise RegistrationError(404, "Registration not found")
+    if registration.checked_in_at is not None:
+        raise RegistrationError(409, "This registration has already been checked in")
+
+    credential = secrets.token_urlsafe(32)
+    registration.qr_credential_hash = hashlib.sha256(
+        credential.encode("utf-8")
+    ).hexdigest()
+    db.commit()
+    db.refresh(registration)
+    return credential
 
 
 

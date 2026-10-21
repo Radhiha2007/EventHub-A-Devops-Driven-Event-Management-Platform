@@ -4,6 +4,8 @@ import re
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.schemas.event import EventResponse
+
 
 class RegistrationCreate(BaseModel):
     attendee_name: str = Field(min_length=1, max_length=255)
@@ -39,6 +41,15 @@ class RegistrationResponse(BaseModel):
 
 class RegistrationCreatedResponse(RegistrationResponse):
     # This credential is returned only once, at creation, for QR generation.
+    qr_credential: str
+
+
+class StudentRegistrationResponse(RegistrationResponse):
+    event: EventResponse
+
+
+class RegistrationCredentialResponse(BaseModel):
+    # Reissuing a credential invalidates the previous QR code for this registration.
     qr_credential: str
 
 
