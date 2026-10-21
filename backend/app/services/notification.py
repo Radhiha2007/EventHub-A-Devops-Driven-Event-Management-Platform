@@ -40,12 +40,21 @@ def get_recipient_notifications(
     return query.order_by(Notification.created_at.desc()).all()
 
 
+
 def update_notification_read_status(
     db: Session,
     notification_id: UUID,
     is_read: bool,
+    recipient_id: str,
 ):
-    notification = db.get(Notification, notification_id)
+    notification = (
+        db.query(Notification)
+        .filter(
+            Notification.id == notification_id,
+            Notification.recipient_id == recipient_id,
+        )
+        .first()
+    )
 
     if notification is None:
         raise HTTPException(
@@ -58,7 +67,6 @@ def update_notification_read_status(
     db.refresh(notification)
 
     return notification
-logger = logging.getLogger(__name__)
 
 
 def create_notifications(

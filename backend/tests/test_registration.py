@@ -118,7 +118,21 @@ def test_registration_rejects_missing_event():
 
     assert missing.status_code == 404
 
+def test_registration_rejects_at_exact_deadline(registration_event):
+    db = SessionLocal()
+    try:
+        event = db.get(Event, registration_event)
+        event.registration_deadline = datetime.utcnow()
+        db.commit()
+    finally:
+        db.close()
 
+    response = client.post(
+        f"/api/events/{registration_event}/registrations",
+    )
+
+    assert response.status_code == 409
+    assert "deadline" in response.json()["detail"].lower()
 
 def test_registration_rejects_non_upcoming_event_and_closed_deadline(
     registration_event,
