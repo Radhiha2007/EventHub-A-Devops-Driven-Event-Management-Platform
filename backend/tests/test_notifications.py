@@ -4,7 +4,7 @@ import uuid
 import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
-
+from app.celery_app import celery_app
 from app.core.auth import get_current_user
 from app.database.session import SessionLocal
 from app.main import app
@@ -35,11 +35,13 @@ def test_auth_context():
         }
 
     app.dependency_overrides[get_current_user] = current_user_claims
-
+    previous_eager_mode = celery_app.conf.task_always_eager
+    celery_app.conf.task_always_eager = True
     yield {
         "tenant_id": tenant_id,
         "email": default_email,
     }
+    celery_app.conf.task_always_eager = previous_eager_mode
 
     app.dependency_overrides.clear()
     app.dependency_overrides.update(previous_overrides)

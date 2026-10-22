@@ -1,4 +1,5 @@
-
+import logging
+from app.tasks.notifications import create_notification_batch
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -6,7 +7,6 @@ from sqlalchemy.orm import Session
 
 from app.models.notification import Notification
 from app.schemas.notification import NotificationCreate
-import logging
 
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -14,7 +14,7 @@ from app.models.user import User, UserRole
 from app.models.registration import Registration
 from app.models.event import Event
 from app.models.notification import Notification, NotificationType
-
+logger = logging.getLogger(__name__)
 def create_notification(db: Session, notification_data: NotificationCreate):
     notification = Notification(**notification_data.model_dump())
 
@@ -76,26 +76,22 @@ def create_notifications(
     message: str,
     notification_type: NotificationType = NotificationType.GENERAL,
 ) -> int:
-    """Persist notifications for multiple recipients in one batch."""
-    unique_ids = set(recipient_ids)
+    unique_ids = list(set(recipient_ids))
+
     if not unique_ids:
         return 0
 
     try:
-        db.add_all([
-            Notification(
-                recipient_id=recipient_id,
-                title=title,
-                message=message,
-                notification_type=notification_type,
-            )
-            for recipient_id in unique_ids
-        ])
-        db.commit()
+        create_notification_batch.delay(
+            recipient_ids=unique_ids,
+            title=title,
+            message=message,
+            notification_type=notification_type.value,
+        )
         return len(unique_ids)
-    except SQLAlchemyError:
-        db.rollback()
-        logger.exception("Failed to persist EventHub notifications")
+
+    except Exception:
+        logger.exception("Failed to queue notification batch: %s", title)
         return 0
 
 
