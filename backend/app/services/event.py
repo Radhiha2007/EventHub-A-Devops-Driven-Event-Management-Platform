@@ -3,10 +3,15 @@ from datetime import date
 from uuid import UUID
 
 from sqlalchemy.orm import Session
-
+from app.models.registration import Registration
 from app.models.event import Event, EventStatus
 from app.models.notification import NotificationType
-from app.schemas.event import EventCreate, EventStatusUpdate, EventUpdate
+from app.schemas.event import (
+    EventCreate,
+    EventStatusUpdate,
+    EventUpdate,
+    validate_schedule,
+)
 from app.services.notification import (
     create_notifications,
     get_active_student_ids,
@@ -75,20 +80,39 @@ def update_event(
     event_data: EventUpdate,
 ) -> Event:
     update_data = event_data.model_dump(exclude_unset=True)
-    validate_schedule(
-        update_data.get("event_date", event.event_date),
-        update_data.get("start_time", event.start_time),
-        update_data.get("end_time", event.end_time),
-        update_data.get(
-            "registration_deadline",
-            event.registration_deadline,
-        ),
+
+    new_date = update_data.get("event_date", event.event_date)
+    new_start = update_data.get("start_time", event.start_time)
+    new_end = update_data.get("end_time", event.end_time)
+    new_deadline = update_data.get(
+        "registration_deadline",
+        event.registration_deadline,
     )
+
+    validate_schedule(new_date, new_start, new_end, new_deadline)
+
+    if "capacity" in update_data:
+        registration_count = (
+            db.query(Registration)
+            .filter(Registration.event_id == event.id)
+            .count()
+        )
+
+        if update_data["capacity"] < registration_count:
+            raise ValueError(
+                "Capacity cannot be lower than the number "
+                "of existing registrations"
+            )
+
     for field, value in update_data.items():
         setattr(event, field, value)
 
-    db.commit()
-    db.refresh(event)
+    try:
+        db.commit()
+        db.refresh(event)
+    except Exception:
+        db.rollback()
+        raise
 
     if update_data:
         student_ids = get_event_student_ids(db, event.id)

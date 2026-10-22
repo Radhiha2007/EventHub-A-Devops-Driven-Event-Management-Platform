@@ -1,10 +1,11 @@
-
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
+from app.core.permissions import require_roles
 from app.database.session import get_db
+from app.models.user import User, UserRole
 from app.schemas.feedback import FeedbackCreate, FeedbackResponse
 from app.services.feedback import create_feedback, get_event_feedback
 
@@ -23,8 +24,9 @@ router = APIRouter(
 def submit_feedback(
     feedback_data: FeedbackCreate,
     db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.STUDENT)),
 ):
-    return create_feedback(db, feedback_data)
+    return create_feedback(db, feedback_data, user)
 
 
 @router.get(

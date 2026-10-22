@@ -65,10 +65,10 @@ class EventCreate(BaseModel):
 
 
 class EventUpdate(BaseModel):
-    title: str | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
-    category: str | None = None
-    venue: str | None = None
+    category: str | None = Field(default=None, min_length=1, max_length=100)
+    venue: str | None = Field(default=None, min_length=1, max_length=255)
     poster_url: str | None = None
     event_date: date | None = None
     start_time: time | None = None
@@ -76,6 +76,28 @@ class EventUpdate(BaseModel):
     capacity: int | None = Field(default=None, gt=0)
     registration_deadline: datetime | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_required_fields(cls, values):
+        if not isinstance(values, dict):
+            return values
+
+        required_fields = {
+            "title",
+            "category",
+            "venue",
+            "event_date",
+            "start_time",
+            "end_time",
+            "capacity",
+            "registration_deadline",
+        }
+
+        for field in required_fields:
+            if field in values and values[field] is None:
+                raise ValueError(f"{field} cannot be null")
+
+        return values
 
 class EventStatusUpdate(BaseModel):
     status: EventStatus

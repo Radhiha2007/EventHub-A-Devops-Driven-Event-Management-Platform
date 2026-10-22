@@ -19,7 +19,6 @@ from app.schemas.event import (
 )
 from app.services.event import (
     create_event,
-    delete_event,
     get_event,
     get_events,
     update_event,
@@ -110,8 +109,13 @@ def update_event_endpoint(
         )
 
     require_club_email_access(user, event.club.contact_email)
-    return update_event(db, event, event_data)
-
+    try:
+        return update_event(db, event, event_data)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 
 
@@ -141,17 +145,3 @@ def update_event_status_endpoint(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
-
-def delete_event_endpoint(
-    event_id: UUID,
-    db: Session = Depends(get_db),
-):
-    event = get_event(db, event_id)
-
-    if event is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    delete_event(db, event)

@@ -1,7 +1,14 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, Text
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,6 +23,11 @@ class Feedback(Base):
             "rating >= 1 AND rating <= 5",
             name="check_feedback_rating",
         ),
+        UniqueConstraint(
+            "event_id",
+            "user_id",
+            name="uq_feedback_event_user",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -26,9 +38,15 @@ class Feedback(Base):
 
     event_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("events.id"),
+        ForeignKey("events.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
+    )
+
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
     )
 
     rating: Mapped[int] = mapped_column(
