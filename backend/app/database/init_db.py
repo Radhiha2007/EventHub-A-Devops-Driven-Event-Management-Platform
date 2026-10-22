@@ -34,6 +34,16 @@ def init_db():
     )
     migrate_certificate_unique_constraint()
 
+    from migrations.add_user_onboarding_column import (
+        migrate as migrate_user_onboarding_column,
+    )
+    migrate_user_onboarding_column()
+
+    from migrations.add_feedback_user_id import (
+        migrate as migrate_feedback_user_id,
+    )
+    migrate_feedback_user_id()
+
 if __name__ == "__main__":
     init_db()
     print("EventHub database tables created successfully")

@@ -2,7 +2,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from prometheus_fastapi_instrumentator import Instrumentator
-
+from app.core.config import settings
 from app.core.auth import get_current_user
 from app.database.session import engine
 from app.routers.clubs import router as clubs_router
@@ -23,7 +23,7 @@ Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
