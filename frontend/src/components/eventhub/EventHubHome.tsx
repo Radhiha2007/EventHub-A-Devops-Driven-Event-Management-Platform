@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { ArrowRight, Search, MapPin, CalendarDays, Clock3, Laptop, Palette, Share2, Lightbulb, Rocket, Paintbrush, Menu, X, Star, Users, BriefcaseBusiness, Video, MessageCircle, Bookmark, Check } from "lucide-react";
-import { Button } from '../ui/button';
+import { Button } from "../ui/AppButton";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dialog';
 import campusImage from '../../assets/campus.png';
 import studentsImage from '../../assets/students.png';
