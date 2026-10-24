@@ -235,4 +235,3 @@ describe('Club event management', () => {
     expect(await screen.findByText('EVH-ABC123')).toBeInTheDocument()
   })
 })
-
