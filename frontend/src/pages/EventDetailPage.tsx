@@ -1,7 +1,8 @@
-import { Link, useParams } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/endpoints'
-import { errorMessage } from '@/api/client'
+import { ApiError, errorMessage } from '@/api/client'
 import type { EventItem } from '@/api/types'
 import { useAuth } from '@/auth/AuthProvider'
 import { FeedbackSection } from '@/components/FeedbackSection'
@@ -43,8 +44,12 @@ function RegistrationPanel({ event }: { event: EventItem }) {
   if (status !== 'signed-in' || !profile) {
     return (
       <div className="space-y-3">
-        <p className="text-sm text-ink-soft">Sign in with your Microsoft account to register for this event.</p>
-        <LinkButton to="/sign-in" state={{ from: `/events/${event.id}` }} className="w-full">Sign in to register</LinkButton>
+        <p className="text-sm text-ink-soft">
+          Sign in with your Microsoft account to register for this event.
+        </p>
+        <LinkButton to="/sign-in" state={{ from: `/events/${event.id}` }} className="w-full">
+          Sign in to register
+        </LinkButton>
       </div>
     )
   }
@@ -65,16 +70,23 @@ function RegistrationPanel({ event }: { event: EventItem }) {
     return (
       <div className="space-y-3">
         <Notice tone="success" title="You're registered 🎉">
-          {existing.checked_in_at ? 'Your attendance has been recorded.' : 'Show your QR code to the club at check-in.'}
+          {existing.checked_in_at
+            ? 'Your attendance has been recorded.'
+            : 'Show your QR code to the club at check-in.'}
         </Notice>
         <RegistrationTicket registration={existing} event={event} />
         <p className="text-xs text-ink-soft">
-          <Link to="/dashboard/tickets" className="font-bold text-blue-700 hover:underline">See all your tickets</Link>
+          <Link to="/dashboard/tickets" className="font-bold text-blue-700 hover:underline">
+            See all your tickets
+          </Link>
         </p>
       </div>
     )
   }
-  if (myRegs.isPending && myRegs.fetchStatus !== 'idle') return <p className="text-sm text-ink-soft">Checking your registration…</p>
+
+  if (myRegs.isPending && myRegs.fetchStatus !== 'idle') {
+    return <p className="text-sm text-ink-soft">Checking your registration…</p>
+  }
 
   return (
     <div className="space-y-3">
@@ -85,12 +97,20 @@ function RegistrationPanel({ event }: { event: EventItem }) {
             : `Registration closed on ${formatDateTimeUtc(event.registration_deadline)}.`}
         </Notice>
       )}
-      <Button variant="primary" size="lg" className="w-full" onClick={() => register.mutate()} loading={register.isPending} disabled={!open || myRegs.isError}>
+      <Button
+        variant="primary"
+        size="lg"
+        className="w-full"
+        onClick={() => register.mutate()}
+        loading={register.isPending}
+        disabled={!open || myRegs.isError}
+      >
         Register for this event
       </Button>
       {register.isError && <Notice tone="error">{errorMessage(register.error)}</Notice>}
       <p className="text-xs text-ink-soft">
-        Registering uses your signed-in name and email ({profile.full_name ?? 'no name'}, {profile.email ?? 'no email'}).
+        Registering uses your signed-in name and email ({profile.full_name ?? 'no name'},{' '}
+        {profile.email ?? 'no email'}).
       </p>
     </div>
   )
@@ -99,7 +119,28 @@ function RegistrationPanel({ event }: { event: EventItem }) {
 export function EventDetailPage() {
   const { eventId = '' } = useParams()
   const { profile } = useAuth()
-  const event = useQuery({ queryKey: ['event', eventId], queryFn: () => api.getEvent(eventId) })
+  const navigate = useNavigate()
+  const qc = useQueryClient()
+
+  const event = useQuery({
+    queryKey: ['event', eventId],
+    queryFn: () => api.getEvent(eventId),
+    refetchInterval: 5000,
+    retry: (failureCount, error) => {
+      if (error instanceof ApiError && error.status === 404) {
+        return false
+      }
+      return failureCount < 2
+    },
+  })
+
+  useEffect(() => {
+    if (event.error instanceof ApiError && event.error.status === 404) {
+      void qc.invalidateQueries({ queryKey: ['events'] })
+      navigate('/events', { replace: true })
+    }
+  }, [event.error, navigate, qc])
+
   const club = useQuery({
     queryKey: ['club', event.data?.club_id],
     queryFn: () => api.getClub(event.data!.club_id),
@@ -108,7 +149,10 @@ export function EventDetailPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-      <Link to="/events" className="text-sm font-bold text-blue-700 hover:underline">← All events</Link>
+      <Link to="/events" className="text-sm font-bold text-blue-700 hover:underline">
+        ← All events
+      </Link>
+
       <QueryBoundary query={event} loadingLabel="Loading event…">
         {(e) => (
           <>
@@ -120,15 +164,26 @@ export function EventDetailPage() {
                     <Pill tone="coral">{e.category}</Pill>
                     <StatusBadge status={e.status} />
                   </div>
-                  <h1 className="mt-3 text-3xl font-extrabold leading-tight tracking-tight sm:text-4xl">{e.title}</h1>
+                  <h1 className="mt-3 text-3xl font-extrabold leading-tight tracking-tight sm:text-4xl">
+                    {e.title}
+                  </h1>
+
                   {club.data && (
                     <p className="mt-2 text-sm">
-                      Hosted by <Link className="font-bold text-blue-700 hover:underline" to={`/clubs/${club.data.id}`}>{club.data.name}</Link>
+                      Hosted by{' '}
+                      <Link
+                        className="font-bold text-blue-700 hover:underline"
+                        to={`/clubs/${club.data.id}`}
+                      >
+                        {club.data.name}
+                      </Link>
                     </p>
                   )}
+
                   <p className="mt-5 whitespace-pre-line text-[15px] leading-relaxed text-charcoal/90">
                     {e.description || 'The organisers have not added a description yet.'}
                   </p>
+
                   <dl className="mt-6 grid gap-4 sm:grid-cols-2">
                     {[
                       ['Date', formatDate(e.event_date)],
@@ -138,21 +193,28 @@ export function EventDetailPage() {
                       ['Registration deadline', formatDateTimeUtc(e.registration_deadline)],
                     ].map(([k, v]) => (
                       <div key={k} className="rounded-xl bg-cream p-3">
-                        <dt className="text-xs font-bold uppercase tracking-wide text-ink-soft">{k}</dt>
+                        <dt className="text-xs font-bold uppercase tracking-wide text-ink-soft">
+                          {k}
+                        </dt>
                         <dd className="mt-0.5 font-semibold">{v}</dd>
                       </div>
                     ))}
                   </dl>
+
                   {club.data && profile?.role === 'CLUB' && ownsClub(profile, club.data) && (
-                    <LinkButton to={`/club/events/${e.id}`} variant="blue" className="mt-6">Manage this event</LinkButton>
+                    <LinkButton to={`/club/events/${e.id}`} variant="blue" className="mt-6">
+                      Manage this event
+                    </LinkButton>
                   )}
                 </div>
+
                 <aside aria-label="Registration" className="lg:border-l lg:border-line lg:pl-8">
                   <h2 className="mb-3 text-lg font-extrabold">Registration</h2>
                   <RegistrationPanel event={e} />
                 </aside>
               </div>
             </div>
+
             <FeedbackSection event={e} />
           </>
         )}

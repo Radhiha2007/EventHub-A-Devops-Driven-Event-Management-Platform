@@ -61,6 +61,11 @@ export const api = {
       auth: true,
       body: { status },
     }),
+  deleteEvent: (id: string) =>
+    request<void>(`/api/events/${id}`, {
+      method: 'DELETE',
+      auth: true,
+    }),
 
   // routers/registrations.py
   /** STUDENT only. The backend takes identity from the token; the body is not read. */
