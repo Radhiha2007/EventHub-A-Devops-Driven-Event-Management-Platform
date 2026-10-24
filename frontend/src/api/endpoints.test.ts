@@ -84,8 +84,8 @@ describe('API contract', () => {
     expect(await call(() => api.downloadCertificate(ID))).toMatchObject({ method: 'GET', path: `/api/certificates/${ID}/download`, authed: true })
   })
 
-  it('exposes no endpoint the backend lacks (no delete event)', () => {
-    const names = Object.keys(api)
-    expect(names.some((n) => /delete/i.test(n))).toBe(false)
-  })
+  it('exposes the delete event endpoint supported by the backend', () => {
+   expect(api.deleteEvent).toBeDefined()
+   expect(typeof api.deleteEvent).toBe('function')
+	})
 })
