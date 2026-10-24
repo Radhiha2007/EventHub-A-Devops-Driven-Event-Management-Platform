@@ -117,12 +117,41 @@ def reissue_registration_qr_credential(
 
 def check_in(db: Session, credential: str) -> tuple[Registration, bool]:
     credential_hash = hashlib.sha256(credential.encode("utf-8")).hexdigest()
+
+    # Find the registration before attempting to record attendance.
+    registration = (
+        db.query(Registration)
+        .filter(Registration.qr_credential_hash == credential_hash)
+        .first()
+    )
+
+    if registration is None:
+        raise RegistrationError(404, "Invalid QR credential")
+
+    # Lock the event while checking its status and recording attendance.
+    event = (
+        db.query(Event)
+        .filter(Event.id == registration.event_id)
+        .with_for_update()
+        .first()
+    )
+
+    if event is None:
+        raise RegistrationError(404, "Event not found")
+
+    if event.status != EventStatus.ONGOING:
+        raise RegistrationError(
+            409,
+            "Attendance can be recorded only while the event is ongoing",
+        )
+
+    # Record attendance only if it has not already been recorded.
     checked_in_at = datetime.utcnow()
 
     result = db.execute(
         update(Registration)
         .where(
-            Registration.qr_credential_hash == credential_hash,
+            Registration.id == registration.id,
             Registration.checked_in_at.is_(None),
         )
         .values(checked_in_at=checked_in_at)
@@ -136,36 +165,22 @@ def check_in(db: Session, credential: str) -> tuple[Registration, bool]:
 
     row = result.one_or_none()
 
-    if row is not None:
-        db.commit()
-        registration = db.get(Registration, row.id)
+    if row is None:
+        db.rollback()
+        raise RegistrationError(409, "Registration has already been checked in")
 
-        # Notify only when the student's attendance is recorded for the first time.
-        if registration is not None and registration.user_id is not None:
-            event = db.get(Event, registration.event_id)
-            create_notifications(
-                db=db,
-                recipient_ids=[str(registration.user_id)],
-                title="Attendance recorded",
-                message=(
-                    f"Your attendance for '{event.title}' has been recorded."
-                    if event is not None
-                    else "Your event attendance has been recorded."
-                ),
-                notification_type=NotificationType.GENERAL,
-            )
+    db.commit()
 
-        return registration, True
+    registration = db.get(Registration, row.id)
 
-    db.rollback()
+    # Notify the student only after attendance has been recorded.
+    if registration is not None and registration.user_id is not None:
+        create_notifications(
+            db=db,
+            recipient_ids=[str(registration.user_id)],
+            title="Attendance recorded",
+            message=f"Your attendance for '{event.title}' has been recorded.",
+            notification_type=NotificationType.GENERAL,
+        )
 
-    existing = (
-        db.query(Registration)
-        .filter(Registration.qr_credential_hash == credential_hash)
-        .first()
-    )
-
-    if existing is None:
-        raise RegistrationError(404, "Invalid QR credential")
-
-    raise RegistrationError(409, "Registration has already been checked in")
+    return registration, True

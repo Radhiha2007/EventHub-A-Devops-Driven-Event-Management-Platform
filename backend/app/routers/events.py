@@ -23,6 +23,7 @@ from app.services.event import (
     get_events,
     update_event,
     update_event_status,
+    delete_event,
 )
 
 
@@ -145,3 +146,22 @@ def update_event_status_endpoint(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
+@router.delete(
+    "/{event_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_event_endpoint(
+    event_id: UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.CLUB)),
+):
+    event = get_event(db, event_id)
+
+    if event is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    require_club_email_access(user, event.club.contact_email)
+    delete_event(db, event)

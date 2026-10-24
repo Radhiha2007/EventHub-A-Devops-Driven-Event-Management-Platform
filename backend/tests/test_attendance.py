@@ -73,6 +73,7 @@ def registered_attendee(test_auth_context):
     db.add(event)
     db.commit()
     event_id = event.id
+    club_id = club.id
     db.close()
 
     response = client.post(f"/api/events/{event_id}/registrations")
@@ -81,19 +82,31 @@ def registered_attendee(test_auth_context):
         yield event_id, response.json()["qr_credential"]
     finally:
         db = SessionLocal()
-        db.query(Registration).filter(Registration.event_id == event_id).delete()
+        db.query(Registration).filter(
+            Registration.event_id == event_id
+        ).delete(synchronize_session=False)
+
         event = db.get(Event, event_id)
         if event is not None:
-            club_id = event.club_id
             db.delete(event)
             db.flush()
-            db.delete(db.get(Club, club_id))
+
+        club = db.get(Club, club_id)
+        if club is not None:
+            db.delete(club)
+
         db.commit()
         db.close()
 
 
 def test_check_in_accepts_credential_once_and_rejects_replay(registered_attendee, test_auth_context):
-    _, credential = registered_attendee
+    event_id, credential = registered_attendee
+
+    db = SessionLocal()
+    event = db.get(Event, event_id)
+    event.status = EventStatus.ONGOING
+    db.commit()
+    db.close()
     club_email = test_auth_context["club_email"]
     first = client.post(
         "/api/attendance/check-in",
@@ -105,7 +118,7 @@ def test_check_in_accepts_credential_once_and_rejects_replay(registered_attendee
         json={"credential": credential},
         headers={"x-test-email": club_email},
     )
-
+    print("REPLAY CHECK-IN:", replay.status_code, replay.text)
     assert first.status_code == 200
     assert first.json()["attendee_name"] == test_auth_context["default_name"]
     assert first.json()["checked_in_at"]
@@ -181,13 +194,20 @@ def test_other_club_cannot_check_in_attendee(
 def test_student_history_shows_attendance_after_check_in(
     registered_attendee, test_auth_context
 ):
-    _, credential = registered_attendee
+    event_id, credential = registered_attendee
 
+    db = SessionLocal()
+    event = db.get(Event, event_id)
+    event.status = EventStatus.ONGOING
+    db.commit()
+    db.close()
     check_in = client.post(
         "/api/attendance/check-in",
         json={"credential": credential},
         headers={"x-test-email": test_auth_context["club_email"]},
     )
+    print("STUDENT HISTORY CHECK-IN:", check_in.status_code, check_in.text)
+
     assert check_in.status_code == 200
 
     history = client.get("/api/registrations/me")
@@ -196,3 +216,61 @@ def test_student_history_shows_attendance_after_check_in(
     registrations = history.json()
     assert len(registrations) == 1
     assert registrations[0]["checked_in_at"] is not None
+
+@pytest.mark.parametrize(
+    "event_status",
+    [
+        EventStatus.UPCOMING,
+        EventStatus.COMPLETED,
+        EventStatus.CANCELLED,
+    ],
+)
+def test_check_in_rejected_when_event_not_ongoing(
+    registered_attendee,
+    test_auth_context,
+    event_status,
+):
+    event_id, credential = registered_attendee
+
+    db = SessionLocal()
+    event = db.get(Event, event_id)
+    event.status = event_status
+    db.commit()
+    db.close()
+
+    response = client.post(
+        "/api/attendance/check-in",
+        json={"credential": credential},
+        headers={"x-test-email": test_auth_context["club_email"]},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Attendance can be recorded only while the event is ongoing"
+    )
+
+    db = SessionLocal()
+    registration = (
+        db.query(Registration)
+        .filter(Registration.event_id == event_id)
+        .one()
+    )
+    assert registration.checked_in_at is None
+    db.close()
+
+def test_club_can_delete_its_event(
+    registered_attendee,
+    test_auth_context,
+):
+    event_id, _ = registered_attendee
+
+    response = client.delete(
+        f"/api/events/{event_id}",
+        headers={"x-test-email": test_auth_context["club_email"]},
+    )
+
+    assert response.status_code == 204
+
+    db = SessionLocal()
+    assert db.get(Event, event_id) is None
+    db.close()
