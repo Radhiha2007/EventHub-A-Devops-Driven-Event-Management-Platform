@@ -1,11 +1,14 @@
 import uuid
 from io import BytesIO
+from pathlib import Path
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfgen import canvas
+from pypdf import PdfReader, PdfWriter
 from app.models.certificate import Certificate
 from app.models.event import Event
+from app.models.club import Club
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -51,9 +54,13 @@ def download_certificate(
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    buffer = BytesIO()
-    pdf = canvas.Canvas(buffer, pagesize=landscape(A4))
-    width, height = landscape(A4)
+    club = db.get(Club, event.club_id)
+    page_size = landscape(A4)
+    width, height = page_size
+
+    # Create the transparent text layer.
+    text_buffer = BytesIO()
+    pdf = canvas.Canvas(text_buffer, pagesize=page_size)
 
     pdf.setTitle(f"Certificate - {certificate.certificate_code}")
     pdf.setFont("Helvetica-Bold", 28)
@@ -70,28 +77,89 @@ def download_certificate(
 
     pdf.setFont("Helvetica-Bold", 20)
     pdf.drawCentredString(width / 2, height - 300, event.title[:80])
-
+    if club is not None:
+        pdf.setFont("Helvetica", 15)
+        pdf.drawCentredString(
+            width / 2,
+            height - 330,
+            f"from {club.name}",
+        )
     pdf.setFont("Helvetica", 11)
     pdf.drawCentredString(
-        width / 2,
-        90,
+        width / 2, 90,
         f"Certificate Code: {certificate.certificate_code}",
     )
     pdf.drawCentredString(
-        width / 2,
-        70,
+        width / 2, 70,
         f"Issued on: {certificate.issued_at:%d %B %Y}",
     )
 
     pdf.save()
-    buffer.seek(0)
+    text_buffer.seek(0)
+
+    # Load the designed background and merge the text on top.
+    background_path = (
+        Path(__file__).resolve().parents[1]
+        / "assets"
+        / "certificate_background.pdf"
+    )
+
+    if not background_path.is_file():
+        raise HTTPException(
+            status_code=500,
+            detail="Certificate background PDF is missing",
+        )
+
+    background_reader = PdfReader(str(background_path))
+    text_reader = PdfReader(text_buffer)
+
+    if not background_reader.pages:
+        raise HTTPException(
+            status_code=500,
+            detail="Certificate background PDF has no pages",
+        )
+
+    background_page = background_reader.pages[0]
+    text_page = text_reader.pages[0]
+
+    # Scale the text layer if the background page has different dimensions.
+    background_width = float(background_page.mediabox.width)
+    background_height = float(background_page.mediabox.height)
+    text_width = float(text_page.mediabox.width)
+    text_height = float(text_page.mediabox.height)
+
+    if (
+        abs(background_width - text_width) > 1
+        or abs(background_height - text_height) > 1
+    ):
+        from pypdf import Transformation
+
+        text_page.add_transformation(
+            Transformation().scale(
+                sx=background_width / text_width,
+                sy=background_height / text_height,
+            )
+        )
+
+    background_page.merge_page(text_page)
+
+    output_buffer = BytesIO()
+    writer = PdfWriter()
+    writer.add_page(background_page)
+    writer.add_metadata({
+        "/Title": f"Certificate - {certificate.certificate_code}"
+    })
+    writer.write(output_buffer)
+    output_buffer.seek(0)
 
     filename = f"certificate-{certificate.certificate_code}.pdf"
 
     return StreamingResponse(
-        buffer,
+        output_buffer,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        },
     )
 
 @router.post(
