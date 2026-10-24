@@ -1,3 +1,4 @@
+
 services:
   db:
     image: postgres:16
@@ -7,7 +8,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-
     ports:
       - "${POSTGRES_PORT}:5432"
     volumes:
@@ -17,6 +17,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
   redis:
     image: redis:7-alpine
     container_name: eventhub-redis
@@ -29,6 +30,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
   backend:
     build:
       context: ./backend
@@ -56,7 +58,12 @@ services:
       context: ./backend
     container_name: eventhub-celery-worker
     restart: unless-stopped
-    command: ["celery", "-A", "app.celery_app:celery_app", "worker", "--loglevel=info"]
+    command:
+      - celery
+      - -A
+      - app.celery_app:celery_app
+      - worker
+      - --loglevel=info
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -71,6 +78,23 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  flower:
+    image: mher/flower:2.0
+    container_name: eventhub-flower
+    restart: unless-stopped
+    command:
+      - celery
+      - --broker=redis://redis:6379/0
+      - flower
+      - --port=5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+      celery_worker:
+        condition: service_started
 
   frontend:
     build:
@@ -99,6 +123,41 @@ services:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     depends_on:
       - backend
+
+  blackbox_exporter:
+    image: prom/blackbox-exporter:latest
+    container_name: eventhub-blackbox-exporter
+    restart: unless-stopped
+    ports:
+      - "9115:9115"
+    volumes:
+      - ./prometheus/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: eventhub-postgres-exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_URI: "db:5432/${POSTGRES_DB}?sslmode=disable"
+      DATA_SOURCE_USER: ${POSTGRES_USER}
+      DATA_SOURCE_PASS: ${POSTGRES_PASSWORD}
+    ports:
+      - "9187:9187"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  redis_exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: eventhub-redis-exporter
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    ports:
+      - "9121:9121"
+    depends_on:
+      redis:
+        condition: service_healthy
 
   grafana:
     image: grafana/grafana:latest
