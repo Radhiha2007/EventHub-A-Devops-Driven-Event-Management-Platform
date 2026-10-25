@@ -1,5 +1,5 @@
 
-from pydantic_settings import BaseSettings, SettingsConfigDict, NoDecode
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
 
 
@@ -23,7 +23,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    CORS_ORIGINS: NoDecode[list[str]] = [
+    CORS_ORIGINS: list[str] = [
         "http://localhost:5173",
         "https://eventhub-a-devops-driven-event-4sxy.onrender.com",
     ]
