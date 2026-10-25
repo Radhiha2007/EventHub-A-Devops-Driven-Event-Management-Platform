@@ -1,3 +1,4 @@
+
 import { createBrowserRouter, Outlet, RouterProvider } from 'react-router-dom'
 import { RequireAuth } from '@/auth/guards'
 import { RootLayout } from '@/components/layout/RootLayout'
@@ -15,14 +16,19 @@ import { VerifyPage } from '@/pages/VerifyPage'
 const lazyPage = (load: () => Promise<Record<string, unknown>>, name: string) => ({
   lazy: async () => ({ Component: (await load())[name] as React.ComponentType }),
 })
-const student = (name: string) => lazyPage(() => import('@/pages/student/pages'), name)
-const club = (name: string) => lazyPage(() => import('@/pages/club/pages'), name)
+
+const student = (name: string) =>
+  lazyPage(() => import('@/pages/student/pages'), name)
+
+const club = (name: string) =>
+  lazyPage(() => import('@/pages/club/pages'), name)
 
 const router = createBrowserRouter([
   {
     element: <RootLayout />,
     children: [
       { index: true, element: <HomePage /> },
+      { path: 'index.html', element: <HomePage /> },
       { path: 'events', element: <EventsPage /> },
       { path: 'events/:eventId', element: <EventDetailPage /> },
       { path: 'clubs', element: <ClubsPage /> },
@@ -33,7 +39,11 @@ const router = createBrowserRouter([
       { path: 'onboarding', element: <OnboardingPage /> },
       {
         path: 'dashboard',
-        element: <RequireAuth role="STUDENT"><Outlet /></RequireAuth>,
+        element: (
+          <RequireAuth role="STUDENT">
+            <Outlet />
+          </RequireAuth>
+        ),
         children: [
           {
             ...student('StudentLayout'),
@@ -48,7 +58,11 @@ const router = createBrowserRouter([
       },
       {
         path: 'club',
-        element: <RequireAuth role="CLUB"><Outlet /></RequireAuth>,
+        element: (
+          <RequireAuth role="CLUB">
+            <Outlet />
+          </RequireAuth>
+        ),
         children: [
           {
             ...club('ClubLayout'),
