@@ -1,10 +1,15 @@
+
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from prometheus_fastapi_instrumentator import Instrumentator
+
 from app.core.config import settings
 from app.core.auth import get_current_user
 from app.database.session import engine
+from app.database.init_db import init_db
 from app.routers.clubs import router as clubs_router
 from app.routers.events import router as events_router
 from app.routers.registrations import router as registrations_router
@@ -13,10 +18,18 @@ from app.routers.notifications import router as notifications_router
 from app.routers.certificates import router as certificates_router
 from app.routers.users import router as users_router
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
 app = FastAPI(
     title="EventHub API",
     description="Backend API for the EventHub campus event management platform",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
