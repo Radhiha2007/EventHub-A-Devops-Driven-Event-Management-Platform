@@ -115,6 +115,15 @@ export const api = {
   /** CLUB only (checked in the service layer), must own the event. */
   issueCertificate: (data: CertificateIssue) =>
     request<Certificate>('/api/certificates/issue', { method: 'POST', auth: true, body: data }),
+    /** CLUB only; issues certificates to all eligible present attendees. */
+  issueBulkCertificates: (eventId: string) =>
+    request<CertificateBulkResponse>(
+      `/api/certificates/bulk/${encodeURIComponent(eventId)}`,
+      {
+        method: 'POST',
+        auth: true,
+      },
+    ),
   /** STUDENT only, recipientId must equal own profile id. */
   listMyCertificates: (recipientId: string) =>
     request<Certificate[]>(`/api/certificates/recipient/${encodeURIComponent(recipientId)}`, {

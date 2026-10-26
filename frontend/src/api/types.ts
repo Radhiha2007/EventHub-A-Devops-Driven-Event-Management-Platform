@@ -141,10 +141,13 @@ export interface Certificate {
   certificate_code: string
   issued_at: string
 }
-export interface CertificateIssue {
+export interface CertificateBulkResponse {
   event_id: string
-  recipient_id: string
-  recipient_name: string
+  eligible: number
+  issued: number
+  already_issued: number
+  failed: number
+  skipped_unlinked: number
 }
 export interface CertificateVerification {
   valid: boolean

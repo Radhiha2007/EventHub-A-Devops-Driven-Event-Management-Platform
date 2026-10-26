@@ -321,3 +321,126 @@ def test_download_nonexistent_certificate_returns_404(certificate_context):
     )
 
     assert response.status_code == 404, response.json()
+
+
+def test_bulk_issues_certificate_to_present_attendee(certificate_context):
+    context = certificate_context
+
+    response = client.post(
+        f"/api/certificates/bulk/{context['event_id']}",
+        headers={"x-test-email": context["club_email"]},
+    )
+
+    assert response.status_code == 200, response.json()
+    data = response.json()
+
+    assert data["eligible"] == 1
+    assert data["issued"] == 1
+    assert data["already_issued"] == 0
+    assert data["failed"] == 0
+
+    db = SessionLocal()
+    try:
+        certificates = (
+            db.query(Certificate)
+            .filter(Certificate.event_id == context["event_id"])
+            .all()
+        )
+        assert len(certificates) == 1
+        assert certificates[0].recipient_id == str(context["student_id"])
+    finally:
+        db.close()
+
+
+def test_bulk_does_not_issue_certificate_to_absent_attendee(
+    certificate_context,
+):
+    context = certificate_context
+
+    db = SessionLocal()
+    try:
+        registration = (
+            db.query(Registration)
+            .filter(
+                Registration.event_id == context["event_id"],
+                Registration.user_id == context["student_id"],
+            )
+            .first()
+        )
+        registration.checked_in_at = None
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.post(
+        f"/api/certificates/bulk/{context['event_id']}",
+        headers={"x-test-email": context["club_email"]},
+    )
+
+    assert response.status_code == 200, response.json()
+    data = response.json()
+
+    assert data["eligible"] == 0
+    assert data["issued"] == 0
+
+    db = SessionLocal()
+    try:
+        count = (
+            db.query(Certificate)
+            .filter(Certificate.event_id == context["event_id"])
+            .count()
+        )
+        assert count == 0
+    finally:
+        db.close()
+
+
+def test_bulk_generation_does_not_duplicate_certificates(
+    certificate_context,
+):
+    context = certificate_context
+    headers = {"x-test-email": context["club_email"]}
+    url = f"/api/certificates/bulk/{context['event_id']}"
+
+    first = client.post(url, headers=headers)
+    second = client.post(url, headers=headers)
+
+    assert first.status_code == 200, first.json()
+    assert second.status_code == 200, second.json()
+
+    assert first.json()["issued"] == 1
+    assert second.json()["issued"] == 0
+    assert second.json()["already_issued"] == 1
+
+    db = SessionLocal()
+    try:
+        count = (
+            db.query(Certificate)
+            .filter(Certificate.event_id == context["event_id"])
+            .count()
+        )
+        assert count == 1
+    finally:
+        db.close()
+
+
+def test_bulk_generation_rejects_uncompleted_event(certificate_context):
+    context = certificate_context
+
+    db = SessionLocal()
+    try:
+        event = db.get(Event, context["event_id"])
+        event.status = EventStatus.UPCOMING
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.post(
+        f"/api/certificates/bulk/{context['event_id']}",
+        headers={"x-test-email": context["club_email"]},
+    )
+
+    assert response.status_code == 400, response.json()
+    assert response.json()["detail"] == (
+        "Certificates can only be issued for completed events"
+    )
