@@ -1,20 +1,18 @@
-import { useState, type FormEvent } from 'react'
+import { useState, } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/endpoints'
-import { ApiError, errorMessage } from '@/api/client'
+import { errorMessage } from '@/api/client'
 import { STATUS_TRANSITIONS, type EventItem, type EventStatus, type Registration } from '@/api/types'
 import { CheckInPanel } from '@/components/CheckInPanel'
 import { FeedbackSection } from '@/components/FeedbackSection'
 import { QueryBoundary } from '@/components/QueryList'
 import { StatusBadge } from '@/components/ui/Badge'
 import { Button, LinkButton } from '@/components/ui/Button'
-import { Card, Field } from '@/components/ui/Form'
-import { EmptyState, Limitation, Notice } from '@/components/ui/States'
+import { Card } from '@/components/ui/Form'
+import { EmptyState, Notice } from '@/components/ui/States'
 import { formatDate, formatDateTimeUtc, formatTimeRange, titleCase } from '@/lib/format'
 import { useMyClub } from './ClubContext'
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function StatusControls({ event }: { event: EventItem }) {
   const qc = useQueryClient()
