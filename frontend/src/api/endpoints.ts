@@ -8,6 +8,7 @@ import type {
   AuthMe,
   Certificate,
   CertificateIssue,
+  CertificateBulkResponse,
   CertificateVerification,
   CheckInResponse,
   Club,

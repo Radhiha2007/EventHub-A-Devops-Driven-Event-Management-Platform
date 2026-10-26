@@ -141,6 +141,12 @@ export interface Certificate {
   certificate_code: string
   issued_at: string
 }
+export interface CertificateIssue {
+  event_id: string
+  recipient_id: string
+  recipient_name: string
+}
+
 export interface CertificateBulkResponse {
   event_id: string
   eligible: number
