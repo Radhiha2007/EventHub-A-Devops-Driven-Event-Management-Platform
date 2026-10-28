@@ -70,7 +70,7 @@ export function HomePage() {
               )}
             </div>
           </div>
-          <CampusIllustration className="mx-auto w-full max-w-md" />
+          <CampusIllustration className="mx-auto w-full max-w-xl rounded-[2rem] shadow-[0_20px_50px_rgba(80,60,40,0.08)]" />
         </div>
       </section>
 

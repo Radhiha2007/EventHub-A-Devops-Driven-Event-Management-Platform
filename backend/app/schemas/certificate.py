@@ -28,3 +28,11 @@ class CertificateVerification(BaseModel):
     event_id: uuid.UUID
     recipient_name: str
     issued_at: datetime
+
+class CertificateBulkResponse(BaseModel):
+    event_id: uuid.UUID
+    eligible: int
+    issued: int
+    already_issued: int
+    failed: int
+    skipped_unlinked: int

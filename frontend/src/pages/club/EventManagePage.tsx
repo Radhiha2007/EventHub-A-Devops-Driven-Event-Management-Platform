@@ -1,20 +1,18 @@
-import { useState, type FormEvent } from 'react'
+import { useState, } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/endpoints'
-import { ApiError, errorMessage } from '@/api/client'
+import { errorMessage } from '@/api/client'
 import { STATUS_TRANSITIONS, type EventItem, type EventStatus, type Registration } from '@/api/types'
 import { CheckInPanel } from '@/components/CheckInPanel'
 import { FeedbackSection } from '@/components/FeedbackSection'
 import { QueryBoundary } from '@/components/QueryList'
 import { StatusBadge } from '@/components/ui/Badge'
 import { Button, LinkButton } from '@/components/ui/Button'
-import { Card, Field } from '@/components/ui/Form'
-import { EmptyState, Limitation, Notice } from '@/components/ui/States'
+import { Card } from '@/components/ui/Form'
+import { EmptyState, Notice } from '@/components/ui/States'
 import { formatDate, formatDateTimeUtc, formatTimeRange, titleCase } from '@/lib/format'
 import { useMyClub } from './ClubContext'
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function StatusControls({ event }: { event: EventItem }) {
   const qc = useQueryClient()
@@ -176,126 +174,118 @@ function Roster({ event, regs }: { event: EventItem; regs: Registration[] }) {
   )
 }
 
-function CertificatesTab({ event, regs }: { event: EventItem; regs: Registration[] }) {
-  const [recipientId, setRecipientId] = useState('')
-  const [pick, setPick] = useState('')
-  const [name, setName] = useState('')
-  const [localErr, setLocalErr] = useState<string | null>(null)
 
-  const issue = useMutation({
-    mutationFn: () =>
-      api.issueCertificate({
-        event_id: event.id,
-        recipient_id: recipientId.trim(),
-        recipient_name: name.trim(),
-      }),
-    onSuccess: () => {
-      setRecipientId('')
-      setName('')
-      setPick('')
-    },
+function CertificatesTab({
+  event,
+  regs,
+}: {
+  event: EventItem
+  regs: Registration[]
+}) {
+  const checkedInCount = regs.filter((r) => r.checked_in_at).length
+
+  const bulkIssue = useMutation({
+    mutationFn: () => api.issueBulkCertificates(event.id),
   })
-
-  const checkedIn = regs.filter((r) => r.checked_in_at)
-  const fe = issue.error instanceof ApiError ? issue.error.fieldErrors : {}
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault()
-
-    if (!UUID_RE.test(recipientId.trim())) {
-      setLocalErr('The student ID must be a valid UUID (they can copy it from their dashboard).')
-      return
-    }
-
-    if (!name.trim()) {
-      setLocalErr('Recipient name is required.')
-      return
-    }
-
-    setLocalErr(null)
-    issue.mutate()
-  }
 
   if (event.status !== 'COMPLETED') {
     return (
       <Notice tone="info">
-        Certificates can only be issued for completed events. Mark this event as completed first.
+        Certificates can only be generated for completed events. Mark this
+        event as completed first.
       </Notice>
     )
   }
 
   return (
     <div className="space-y-4">
-      <Limitation title="You need the student's EventHub ID">
-        The backend issues certificates by the student's account ID, which the roster doesn't include.
-        Ask each attendee to copy their ID from <em>Student dashboard → Overview</em>. The backend then
-        verifies they registered and were checked in.
-      </Limitation>
+      <div className="rounded-card border border-line bg-white p-5 shadow-card">
+        <h3 className="text-lg font-bold">Generate attendance certificates</h3>
 
-      <form
-        onSubmit={submit}
-        className="space-y-4 rounded-card border border-line bg-white p-5 shadow-card"
-        noValidate
-      >
-        <Field
-          label="Checked-in attendee (optional shortcut)"
-          hint="Fills in the recipient name. The backend records the name from the registration itself."
-        >
-          <select
-            className="input"
-            value={pick}
-            onChange={(e) => {
-              setPick(e.target.value)
-              const r = checkedIn.find((x) => x.id === e.target.value)
-              if (r) setName(r.attendee_name)
-            }}
-          >
-            <option value="">Select an attendee…</option>
-            {checkedIn.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.attendee_name} ({r.attendee_email})
-              </option>
-            ))}
-          </select>
-        </Field>
+        <p className="mt-2 text-sm text-ink-soft">
+          Generate certificates for all attendees marked present. Students
+          who have not checked in will not receive a certificate. Each
+          certificate is linked to the recipient's own EventHub account.
+        </p>
 
-        <Field label="Student's EventHub ID" required error={fe.recipient_id}>
-          <input
-            className="input font-mono"
-            value={recipientId}
-            onChange={(e) => setRecipientId(e.target.value)}
-            placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-            autoComplete="off"
-          />
-        </Field>
+        <p className="mt-3 text-sm">
+          <span className="font-bold">{checkedInCount}</span>{' '}
+          attendee{checkedInCount === 1 ? '' : 's'} currently marked present.
+        </p>
 
-        <Field label="Recipient name" required error={fe.recipient_name}>
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
-        </Field>
-
-        {localErr && <Notice tone="error">{localErr}</Notice>}
-        {issue.isError && <Notice tone="error">{errorMessage(issue.error)}</Notice>}
-
-        {issue.isSuccess && (
-          <Notice tone="success" title="Certificate issued">
-            Code <code className="break-all">{issue.data.certificate_code}</code> for{' '}
-            {issue.data.recipient_name}.{' '}
-            <Link
-              className="font-bold underline"
-              to={`/verify/${encodeURIComponent(issue.data.certificate_code)}`}
-            >
-              Open verification page
-            </Link>
-          </Notice>
+        {bulkIssue.isError && (
+          <div className="mt-4">
+            <Notice tone="error">
+              {errorMessage(bulkIssue.error)}
+            </Notice>
+          </div>
         )}
 
-        <Button type="submit" variant="green" loading={issue.isPending}>
-          Issue certificate
-        </Button>
-      </form>
+        {bulkIssue.isSuccess && (
+          <div className="mt-4 space-y-3">
+            <Notice tone="success" title="Certificate generation finished">
+              Successfully issued {bulkIssue.data.issued} certificate
+              {bulkIssue.data.issued === 1 ? '' : 's'}.
+            </Notice>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-card border border-line p-4">
+                <p className="text-sm text-ink-soft">Eligible attendees</p>
+                <p className="text-2xl font-bold">
+                  {bulkIssue.data.eligible}
+                </p>
+              </div>
+
+              <div className="rounded-card border border-line p-4">
+                <p className="text-sm text-ink-soft">New certificates</p>
+                <p className="text-2xl font-bold">
+                  {bulkIssue.data.issued}
+                </p>
+              </div>
+
+              <div className="rounded-card border border-line p-4">
+                <p className="text-sm text-ink-soft">Already issued</p>
+                <p className="text-2xl font-bold">
+                  {bulkIssue.data.already_issued}
+                </p>
+              </div>
+
+              <div className="rounded-card border border-line p-4">
+                <p className="text-sm text-ink-soft">Failed</p>
+                <p className="text-2xl font-bold">
+                  {bulkIssue.data.failed}
+                </p>
+              </div>
+            </div>
+
+            {bulkIssue.data.skipped_unlinked > 0 && (
+              <Notice tone="info">
+                {bulkIssue.data.skipped_unlinked} checked-in registration
+                {bulkIssue.data.skipped_unlinked === 1 ? '' : 's'} could not
+                be linked to an eligible student account.
+              </Notice>
+            )}
+          </div>
+        )}
+
+        <div className="mt-5">
+          <Button
+            type="button"
+            variant="green"
+            loading={bulkIssue.isPending}
+            disabled={bulkIssue.isPending}
+            onClick={() => bulkIssue.mutate()}
+          >
+            {bulkIssue.isPending
+              ? 'Generating certificates…'
+              : 'Generate certificates for all present attendees'}
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
+
 
 type Tab = 'roster' | 'checkin' | 'feedback' | 'certificates'
 

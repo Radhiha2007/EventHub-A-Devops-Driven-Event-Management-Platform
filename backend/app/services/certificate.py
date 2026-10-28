@@ -13,6 +13,7 @@ from app.models.user import User, UserRole
 from app.schemas.certificate import CertificateCreate
 from app.models.notification import NotificationType
 from app.services.notification import create_notifications
+from app.schemas.certificate import CertificateCreate, CertificateBulkResponse
 
 def issue_certificate(
     db: Session,
@@ -152,4 +153,108 @@ def list_recipient_certificates(
         .filter(Certificate.recipient_id == recipient_id)
         .order_by(Certificate.issued_at.desc())
         .all()
+    )
+
+def issue_certificates_for_event(
+    db: Session,
+    event_id: UUID,
+    issuer: User,
+) -> CertificateBulkResponse:
+    if issuer.role != UserRole.CLUB:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the authorized Club account can issue certificates",
+        )
+
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    require_club_email_access(issuer, event.club.contact_email)
+
+    if event.status != EventStatus.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Certificates can only be issued for completed events",
+        )
+
+    # Only checked-in registrations linked to student accounts are eligible.
+    registrations = (
+        db.query(Registration)
+        .join(User, Registration.user_id == User.id)
+        .filter(
+            Registration.event_id == event_id,
+            Registration.checked_in_at.isnot(None),
+            User.role == UserRole.STUDENT,
+            User.is_active.is_(True),
+        )
+        .order_by(Registration.registered_at.asc())
+        .all()
+    )
+
+    # Count checked-in registrations that cannot be linked to an active
+    # student account, so they can be reported to the club.
+    checked_in_registrations = (
+        db.query(Registration)
+        .filter(
+            Registration.event_id == event_id,
+            Registration.checked_in_at.isnot(None),
+        )
+        .all()
+    )
+
+    eligible_ids = {r.id for r in registrations}
+    skipped_unlinked = sum(
+        1 for r in checked_in_registrations if r.id not in eligible_ids
+    )
+
+    already_issued = 0
+    issued = 0
+    failed = 0
+
+    for registration in registrations:
+        existing = (
+            db.query(Certificate)
+            .filter(
+                Certificate.event_id == event_id,
+                Certificate.recipient_id == str(registration.user_id),
+            )
+            .first()
+        )
+
+        if existing:
+            already_issued += 1
+            continue
+
+        try:
+            issue_certificate(
+                db,
+                CertificateCreate(
+                    event_id=event_id,
+                    recipient_id=str(registration.user_id),
+                    recipient_name=registration.attendee_name,
+                ),
+                issuer,
+            )
+            issued += 1
+        except HTTPException as exc:
+            if exc.status_code == status.HTTP_409_CONFLICT:
+                already_issued += 1
+            else:
+                db.rollback()
+                failed += 1
+        except Exception:
+            db.rollback()
+            failed += 1
+
+    return CertificateBulkResponse(
+        event_id=event_id,
+        eligible=len(registrations),
+        issued=issued,
+        already_issued=already_issued,
+        failed=failed,
+        skipped_unlinked=skipped_unlinked,
     )

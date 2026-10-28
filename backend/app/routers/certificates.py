@@ -1,7 +1,6 @@
 import uuid
 from io import BytesIO
 from pathlib import Path
-from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfgen import canvas
@@ -20,9 +19,18 @@ from app.schemas.certificate import (
     CertificateResponse,
     CertificateVerification,
 )
+
+from app.schemas.certificate import (
+    CertificateCreate,
+    CertificateResponse,
+    CertificateVerification,
+    CertificateBulkResponse,
+)
+
 from app.services.certificate import (
     get_certificate_by_code,
     issue_certificate,
+    issue_certificates_for_event,
     list_recipient_certificates,
 )
 
@@ -174,6 +182,16 @@ def issue_certificate_endpoint(
 ):
     return issue_certificate(db, certificate_data, issuer)
 
+@router.post(
+    "/bulk/{event_id}",
+    response_model=CertificateBulkResponse,
+)
+def issue_bulk_certificates_endpoint(
+    event_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    issuer: User = Depends(get_current_profile),
+):
+    return issue_certificates_for_event(db, event_id, issuer)
 
 @router.get(
     "/recipient/{recipient_id}",
