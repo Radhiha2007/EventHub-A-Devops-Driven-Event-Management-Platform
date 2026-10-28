@@ -4,7 +4,7 @@ import { ApiError } from '@/api/client'
 import { AuthProvider } from '@/auth/AuthProvider'
 import App from './App.tsx'
 import './index.css'
-
+import './pwaInstall'
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
