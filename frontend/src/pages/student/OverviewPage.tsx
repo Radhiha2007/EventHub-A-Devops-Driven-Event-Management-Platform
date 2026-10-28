@@ -1,9 +1,8 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/api/endpoints'
 import { useAuth } from '@/auth/AuthProvider'
-import { Button, LinkButton } from '@/components/ui/Button'
+import { LinkButton } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Form'
 import { useMyRegistrations } from '@/lib/useMyRegistrations'
 
@@ -19,22 +18,11 @@ function Stat({ label, value, to, tone, error }: { label: string; value: string;
 
 export function OverviewPage() {
   const { profile } = useAuth()
-  const [copied, setCopied] = useState(false)
   const id = profile!.id
 
   const unread = useQuery({ queryKey: ['notifications', id, 'unread'], queryFn: () => api.listNotifications(id, true) })
   const certs = useQuery({ queryKey: ['certificates', id], queryFn: () => api.listMyCertificates(id) })
   const regs = useMyRegistrations()
-
-  const copyId = async () => {
-    try {
-      await navigator.clipboard.writeText(id)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
-    } catch {
-      /* the id is visible and selectable */
-    }
-  }
 
   return (
     <div className="space-y-6">
@@ -52,16 +40,6 @@ export function OverviewPage() {
           <div><dt className="text-xs font-bold uppercase tracking-wide text-ink-soft">Role</dt><dd className="font-semibold">Student</dd></div>
           <div><dt className="text-xs font-bold uppercase tracking-wide text-ink-soft">Onboarding</dt><dd className="font-semibold">{profile!.onboarding_completed ? 'Complete' : 'Pending'}</dd></div>
         </dl>
-        <div className="mt-4 rounded-xl bg-cream p-3">
-          <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">Your EventHub ID</p>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <code className="min-w-0 flex-1 break-all text-sm font-semibold">{id}</code>
-            <Button size="sm" variant="outline" onClick={() => void copyId()}>{copied ? 'Copied ✓' : 'Copy'}</Button>
-          </div>
-          <p className="mt-2 text-xs text-ink-soft">
-            Clubs need this ID to issue you a certificate after an event — the roster they see doesn't include it, so share it with them.
-          </p>
-        </div>
       </Card>
 
       <div className="flex flex-wrap gap-3">
