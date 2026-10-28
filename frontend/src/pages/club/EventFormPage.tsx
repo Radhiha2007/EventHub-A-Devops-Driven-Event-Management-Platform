@@ -128,9 +128,6 @@ function EventForm({ existing }: { existing?: EventItem }) {
           <Field label="Venue" required error={err('venue')}><input className="input" value={f.venue} onChange={set('venue')} maxLength={255} /></Field>
         </div>
         <datalist id="category-options">{suggestions.map((c) => <option key={c} value={c} />)}</datalist>
-        <Field label="Poster image URL" error={err('poster_url')} hint="Optional. A link to an image; uploads aren't supported by the backend.">
-          <input className="input" inputMode="url" placeholder="https://…" value={f.poster_url} onChange={set('poster_url')} />
-        </Field>
       </Card>
 
       <Card className="grid gap-4 sm:grid-cols-3">
